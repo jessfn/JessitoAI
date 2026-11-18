@@ -16,9 +16,9 @@ video{position:fixed;left:12px;bottom:12px;width:110px;border-radius:14px;border
 </style>
 </head>
 <body>
-<button id="gear" title="Clave de API">⚙</button>
+<button id="gear" title="Clave de API">Clave de API</button>
 <video id="cam" autoplay playsinline muted></video>
-<div id="ui"><div id="status">Toca el botón para hablar conmigo 💙</div><button id="talk">🎤 Hablar</button></div>
+<div id="ui"><div id="status">Toca el botón para hablar conmigo</div><button id="talk">Hablar</button></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -225,8 +225,8 @@ function updateLeds(t){
 // lágrima
 const tear=mesh(sph(.05,16,12),new T.MeshPhysicalMaterial({color:0xaee4ff,transparent:true,opacity:.85,roughness:0,clearcoat:1}),[-.4,-.05,1.12],[1,1.5,1]);tear.visible=false;
 // sprites emoji
-function emoji(t){const m=new T.Sprite(new T.SpriteMaterial({map:canvasTex(128,128,(x)=>{x.font='96px serif';x.textAlign='center';x.textBaseline='middle';x.fillText(t,64,70)}),transparent:true}));m.scale.set(.55,.55,.55);m.visible=false;root.add(m);return m}
-const heart=emoji('💗'),quest=emoji('❓'),zzz=emoji('💤');
+function emoji(){const m=new T.Object3D();root.add(m);return m}
+const heart=emoji(),quest=emoji(),zzz=emoji();
 heart.position.set(-1.3,1.3,.8);quest.position.set(1.3,1.3,.6);zzz.position.set(1.3,1.2,.6);
 
 // sombras
@@ -248,7 +248,7 @@ const E={
  angry:{lid:.48,low:.25,tilt:-.8,pup:.8,m:-.1,c:0xff5a5a},
  listening:{lid:1,low:.05,tilt:0,pup:1.2,m:.05,c:0x7fd4ff},
  sleepy:{lid:.1,low:.3,tilt:0,pup:1,m:.04,c:0x5a7fc0}};
-const LABEL={neutral:'😐 tranquilo',happy:'😊 feliz',sad:'😢 triste',surprised:'😲 sorprendido',thinking:'🤔 pensando',love:'😍 enamorado',angry:'😠 enojado',listening:'👂 te escucho',sleepy:'😴 con sueño'};
+const LABEL={neutral:'Tranquilo',happy:'Feliz',sad:'Triste',surprised:'Sorprendido',thinking:'Pensando',love:'Enamorado',angry:'Enojado',listening:'Te escucho',sleepy:'Con sueño'};
 let emo='neutral',target=E.neutral,speaking=false;
 function setEmotion(e){
   if(!E[e])e='neutral';emo=e;target=E[e];
@@ -304,8 +304,9 @@ let history=[];
 function speak(text,emotion){
   return new Promise(res=>{
     setEmotion(emotion);status.textContent=LABEL[emotion]||'';
-    const u=new SpeechSynthesisUtterance(text);u.lang='es-ES';u.pitch=1.5;u.rate=1.05;
-    const v=speechSynthesis.getVoices().find(v=>v.lang.startsWith('es'));if(v)u.voice=v;
+    const u=new SpeechSynthesisUtterance(text.replace(/[\p{Extended_Pictographic}\uFE0F\u200D*_#~`]/gu,'').replace(/\s+/g,' ').trim());
+    const v=pickVoice();if(v){u.voice=v;u.lang=v.lang}else u.lang='es-MX';
+    u.pitch=v&&/natural|online|neural|google/i.test(v.name)?1.08:1.25;u.rate=.94;u.volume=1;
     u.onstart=()=>speaking=true;
     u.onend=u.onerror=()=>{speaking=false;res()};
     speechSynthesis.cancel();speechSynthesis.speak(u);
@@ -320,7 +321,7 @@ async function think(userText){
   history.push({role:'user',content});
   const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
     body:JSON.stringify({model:'claude-haiku-5-5',max_tokens:300,
-    system:'Eres Blu, un robot azul tierno y amigable. Hablas en español, con frases cortas (máx 2), cariñosas. Recibes lo que dice la persona y una imagen de tu cámara: úsala para ver a la persona y su entorno. Responde SOLO JSON: {"emotion":"neutral|happy|sad|surprised|thinking|love|angry|sleepy","text":"..."} con la emoción que sientes.',
+    system:'Eres Blu, un robot azul tierno y amigable. Hablas en español de México, con frases cortas (máx 2), cariñosas, dulces y naturales, como una personita tierna. Nunca uses emojis, emoticones ni símbolos; solo palabras. Recibes lo que dice la persona y una imagen de tu cámara: úsala para ver a la persona y su entorno. Responde SOLO JSON: {"emotion":"neutral|happy|sad|surprised|thinking|love|angry|sleepy","text":"..."} con la emoción que sientes.',
     messages:history.slice(-8)})});
   const d=await r.json();
   if(!r.ok){history.pop();return{emotion:'sad',text:'Uy, algo falló: '+(d.error?.message||r.status)}}
@@ -334,7 +335,7 @@ $('talk').onclick=()=>{
   if(!SR){status.textContent='Usa Chrome o Edge para el micrófono';return}
   if(busy)return;busy=true;
   const rec=new SR();rec.lang='es-ES';
-  setEmotion('listening');status.textContent='Te escucho… 👂';
+  setEmotion('listening');status.textContent='Te escucho...';
   rec.onresult=async e=>{
     const t=e.results[0][0].transcript;status.textContent='';setEmotion('thinking');
     try{const a=await think(t);await speak(a.text,a.emotion)}catch(err){await speak('No pude conectarme.','sad')}
@@ -345,7 +346,15 @@ $('talk').onclick=()=>{
   rec.start();
 };
 $('gear').onclick=()=>{const k=prompt('Clave de API de Anthropic (se guarda solo en este navegador):');if(k)localStorage.setItem('key',k.trim())};
-speechSynthesis.onvoiceschanged=()=>{};
+// elige la voz española más natural disponible (preferir femeninas neuronales/en línea, es-MX)
+let VOICE=null;
+function pickVoice(){
+  if(VOICE)return VOICE;
+  const vs=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang));if(!vs.length)return null;
+  const score=v=>(/natural|neural|online/i.test(v.name)?50:0)+(/google/i.test(v.name)?35:0)+(/dalia|paulina|sabina|elvira|helena|lucia|laura|monica|mónica|female|mujer|sonia|salome|salomé|valentina|camila|elena/i.test(v.name)?30:0)+(/es-MX/i.test(v.lang)?12:/es-US|es-419/i.test(v.lang)?8:/es-ES/i.test(v.lang)?4:0)+(/jorge|diego|pablo|raul|raúl|male|hombre|alvaro|álvaro|enrique/i.test(v.name)?-40:0)+(v.localService?0:5);
+  VOICE=vs.sort((a,b)=>score(b)-score(a))[0];return VOICE;
+}
+speechSynthesis.onvoiceschanged=()=>{VOICE=null;pickVoice()};
 startCam();
 </script>
 </body>
