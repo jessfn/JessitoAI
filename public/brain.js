@@ -163,6 +163,7 @@ const Brain = (() => {
       if (c) { r = c.r; out = r.t; via = c.key; it = { tag: c.key }; }
       else { it = M.intents.find(x => x.tag === 'no_entiendo') || it; r = pick(it); }
     } else r = pick(it);
+    learn(text, it.tag === 'nombre_usuario' || it.tag === 'recordar_esto' ? it.tag : real.tag);   // primero aprende, luego contesta
     if (out === undefined) {
       const f = mem.facts;
       switch (it.tag) {
@@ -181,7 +182,6 @@ const Brain = (() => {
       }
     }
     out = out.replace('{nombre}', mem.facts.name || 'amigo').replace('{hora}', horaTxt()).replace('{fecha}', fechaTxt());
-    learn(text, it.tag === 'nombre_usuario' || it.tag === 'recordar_esto' ? it.tag : real.tag);
     if (['saludo', 'buenos_dias', 'despertar', 'te_extrano', 'llegue_casa', 'buenas_noches'].includes(it.tag) && Math.random() < .75) { const rc = recallLine(); if (rc) out += ' ' + rc; }
     const action = /^voz_|^volumen_/.test(it.tag) ? it.tag : '';
     if (it.tag !== 'repetir') lastReply = out;

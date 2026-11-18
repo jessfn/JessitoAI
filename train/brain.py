@@ -10,7 +10,7 @@ carga y ejecuta con brain.js.  Uso:  python brain.py [--out ../public/model] [--
 import os, sys, re, json, time, math, random, argparse, unicodedata
 import numpy as np
 
-B, D, H = 8192, 64, 96          # buckets hash, dimension embedding, neuronas ocultas
+B, D, H = 8192, int(os.environ.get('BLU_D', 96)), int(os.environ.get('BLU_H', 160))          # buckets hash, dimension embedding, neuronas ocultas
 
 
 # ---------- rasgos (debe ser IDENTICO a public/brain.js) ----------
