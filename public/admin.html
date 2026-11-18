@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Blu - Entrenamiento</title>
+<style>
+:root{--bg:#070c1f;--card:#0f1a3a;--line:#1f3470;--ink:#d6e8ff;--mut:#8aa6d6;--blue:#3a8dff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;padding:16px;max-width:980px;margin:auto}
+h1{font-size:22px}h2{font-size:16px;margin:0 0 10px;color:var(--mut);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+input,select,textarea,button{font:inherit;color:var(--ink);background:#0a1230;border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+input,select,textarea{width:100%}textarea{min-height:60px}button{background:var(--blue);border:0;cursor:pointer;color:#fff}
+button.sec{background:#1b2c5e}button:disabled{opacity:.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.row>*{flex:1;min-width:140px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.stat b{display:block;font-size:24px}.stat span{color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.q{padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}.q small{color:var(--mut)}
+pre{background:#050918;padding:10px;border-radius:10px;overflow:auto;max-height:220px;font-size:12px}
+#msg{color:#8fe0ff;min-height:20px}
+</style>
+</head>
+<body>
+<h1>Entrenamiento de Blu</h1>
+<div class="card"><h2>Clave de administrador</h2>
+  <div class="row"><input id="key" type="password" placeholder="Clave" autocomplete="current-password"><button id="go">Entrar</button></div><div id="msg"></div></div>
+<div id="app" hidden>
+  <div class="card"><h2>Resumen</h2><div class="stats" id="stats"></div><p id="ver" style="color:var(--mut);font-size:13px"></p>
+    <div class="row"><button id="train">Entrenar ahora</button><button class="sec" id="refresh">Actualizar</button></div><pre id="log" hidden></pre></div>
+  <div class="card"><h2>Enseñar a Blu</h2>
+    <textarea id="t_text" placeholder="Lo que dice la persona. Ej: qué tal tu fin de semana"></textarea>
+    <div class="row"><select id="t_tag"></select><input id="t_new" placeholder="o crear intención nueva (ej: fin_de_semana)"></div>
+    <textarea id="t_reply" placeholder="Cómo debe contestar Blu (opcional). Sin emojis."></textarea>
+    <div class="row"><select id="t_emo"></select><button id="teach">Guardar</button></div></div>
+  <div class="card"><h2>Frases que Blu no entendió</h2><div id="unknown"></div></div>
+  <div class="card"><h2>Intenciones</h2><table id="intents"></table></div>
+  <div class="card"><h2>Últimos entrenamientos</h2><table id="runs"></table></div>
+</div>
+<script>
+const $=id=>document.getElementById(id),EM=['neutral','happy','sad','surprised','thinking','love','angry','listening','sleepy'];
+const EMN={neutral:'tranquilo',happy:'feliz',sad:'triste',surprised:'sorprendido',thinking:'pensando',love:'enamorado',angry:'enojado',listening:'escuchando',sleepy:'con sueño'};
+let K=localStorage.getItem('blu_admin')||'';$('key').value=K;
+const api=(p,b)=>fetch('/api/admin/'+p,{method:b?'POST':'GET',headers:{'x-admin-key':K,'content-type':'application/json'},body:b?JSON.stringify(b):undefined}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('t_emo').innerHTML='<option value="">emoción (la de la intención)</option>'+EM.map(e=>`<option value="${e}">${EMN[e]}</option>`).join('');
+async function load(){
+  const s=await api('summary');$('app').hidden=false;
+  $('stats').innerHTML=Object.entries({intents:'Intenciones',utterances:'Frases',responses:'Respuestas',conversations:'Conversaciones'}).map(([k,l])=>`<div class="stat"><b>${s.counts[k]}</b><span>${l}</span></div>`).join('');
+  $('ver').textContent='Versión publicada: '+s.version.version+(s.training.running?' (entrenando...)':'');
+  $('t_tag').innerHTML='<option value="">elegir intención existente</option>'+s.intents.map(i=>`<option>${esc(i.tag)}</option>`).join('');
+  $('intents').innerHTML='<tr><th>Intención</th><th>Emoción</th><th>Frases</th></tr>'+s.intents.map(i=>`<tr><td>${esc(i.tag)}</td><td>${EMN[i.emotion]||i.emotion}</td><td>${i.n}</td></tr>`).join('');
+  $('runs').innerHTML='<tr><th>Versión</th><th>Ejemplos</th><th>Acierto en frases nuevas</th><th>Fin</th></tr>'+s.runs.map(r=>`<tr><td>${r.version}</td><td>${r.n_examples}</td><td>${(r.val_acc*100).toFixed(1)}%</td><td>${new Date(r.finished_at).toLocaleString('es-MX')}</td></tr>`).join('');
+  $('unknown').innerHTML=s.unknown.length?s.unknown.map(u=>`<div class="q" data-id="${u.id}"><b>${esc(u.user_text)}</b> <small>(entendió: ${esc(u.intent||'-')}, seguridad ${Math.round((u.confidence||0)*100)}%)</small>
+   <div class="row" style="margin-top:8px"><select class="qt">${$('t_tag').innerHTML}</select><button class="sec use">Usar en el formulario</button><button class="sec dis">Descartar</button></div></div>`).join(''):'<small>Nada pendiente.</small>';
+  document.querySelectorAll('.q').forEach(q=>{
+    q.querySelector('.use').onclick=()=>{$('t_text').value=q.querySelector('b').textContent;$('t_tag').value=q.querySelector('.qt').value;$('t_text').dataset.conv=q.dataset.id;scrollTo({top:0,behavior:'smooth'})};
+    q.querySelector('.dis').onclick=async()=>{await api('dismiss',{conv_id:+q.dataset.id});load()}});
+}
+$('go').onclick=async()=>{K=$('key').value;try{await load();localStorage.setItem('blu_admin',K);$('msg').textContent=''}catch(e){$('msg').textContent='No se pudo entrar: '+e.message}};
+$('refresh').onclick=load;
+$('teach').onclick=async()=>{
+  const tag=($('t_new').value.trim()||$('t_tag').value).toLowerCase().replace(/\s+/g,'_');
+  try{await api('teach',{text:$('t_text').value,tag,reply:$('t_reply').value,emotion:$('t_emo').value||undefined,conv_id:+$('t_text').dataset.conv||undefined});
+    $('t_text').value='';$('t_reply').value='';$('t_new').value='';delete $('t_text').dataset.conv;$('msg').textContent='Guardado. Entrena para que Blu lo aprenda.';load()}catch(e){$('msg').textContent='Error: '+e.message}};
+$('train').onclick=async()=>{
+  const r=await api('train',{});$('log').hidden=false;$('train').disabled=true;
+  (async function poll(){const s=await api('train-status');$('log').textContent=s.log.join('\n');$('log').scrollTop=1e9;
+    if(s.running)setTimeout(poll,2000);else{$('train').disabled=false;$('msg').textContent=s.code===0?'Entrenamiento terminado. Las apps se actualizan solas.':'El entrenamiento falló.';load()}})()};
+if(K)load().catch(()=>{});
+</script>
+</body>
+</html>

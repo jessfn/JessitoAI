@@ -2,24 +2,34 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Blu 3D</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1530">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Blu">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<title>Blu</title>
 <style>
 html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% 45%,#12295a,#070c1f 60%,#03050f);font-family:system-ui,sans-serif;color:#cfe6ff;overflow:hidden}
 canvas{position:fixed;inset:0;width:100%;height:100%}
-#ui{position:fixed;bottom:22px;left:0;right:0;text-align:center}
+#ui{position:fixed;bottom:calc(22px + env(safe-area-inset-bottom));left:0;right:0;text-align:center;padding:0 16px}
 #status{min-height:26px;margin-bottom:10px;font-size:18px;opacity:.85;text-shadow:0 0 12px #3a8dff}
 button{font:inherit;border:0;border-radius:999px;padding:14px 30px;background:linear-gradient(#58a6ff,#2f7be8);color:#fff;font-size:18px;cursor:pointer;box-shadow:0 0 28px #3a8dff88,0 6px 0 #1f5fc0}
 button:active{transform:translateY(4px);box-shadow:0 0 28px #3a8dff88,0 2px 0 #1f5fc0}
-#gear{position:fixed;top:12px;right:12px;padding:8px 12px;font-size:16px;background:#ffffff22;box-shadow:none}
+@media (max-width:600px){#status{font-size:16px}button{padding:13px 28px}video{width:72px!important;left:10px!important;top:calc(10px + env(safe-area-inset-top));bottom:auto!important}}
+@media (max-height:420px){#status{display:none}}
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 video{position:fixed;left:12px;bottom:12px;width:110px;border-radius:14px;border:2px solid #3a8dff88;transform:scaleX(-1);opacity:.85}
 </style>
 </head>
 <body>
-<button id="gear" title="Clave de API">Clave de API</button>
 <video id="cam" autoplay playsinline muted></video>
 <div id="ui"><div id="status">Toca el botón para hablar conmigo</div><button id="talk">Hablar</button></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="brain.js"></script>
+<script src="vision.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const status=$('status'),cam=$('cam');
@@ -35,7 +45,7 @@ document.body.prepend(renderer.domElement);
 const scene=new T.Scene();
 const camera=new T.PerspectiveCamera(32,1,.1,60);
 function resize(){renderer.setSize(innerWidth,innerHeight);const a=innerWidth/innerHeight;camera.aspect=a;
-  camera.position.set(0,0,a<.8?9.5:6.6);camera.lookAt(0,-.2,0);camera.updateProjectionMatrix()}
+  camera.position.set(0,0,Math.max(6.6,3.7/(2*Math.tan(16*Math.PI/180)*a)));camera.lookAt(0,-.2,0);camera.updateProjectionMatrix()}
 addEventListener('resize',resize);resize();
 
 // ================= Utilidades de textura =================
@@ -260,12 +270,13 @@ function setEmotion(e){
 setEmotion('happy');
 
 // ================= Animación =================
-let mx=0,my=0;addEventListener('pointermove',e=>{mx=e.clientX/innerWidth*2-1;my=e.clientY/innerHeight*2-1});
+let mx=0,my=0,gx=0,gy=0,ptrAt=-1e9;addEventListener('pointermove',e=>{mx=e.clientX/innerWidth*2-1;my=e.clientY/innerHeight*2-1;ptrAt=performance.now()});
 const clock=new T.Clock();let nextBlink=2,blink=0;
 (function loop(){
   requestAnimationFrame(loop);const t=clock.getElapsedTime();
   root.position.y=Math.sin(t*1.6)*.06;
-  head.rotation.y+=(mx*.5-head.rotation.y)*.07;head.rotation.x+=(my*.28-head.rotation.x)*.07;
+  const gz=performance.now()-ptrAt>4000?Vision.gaze:null;gx+=((gz?gz.x:mx)-gx)*.12;gy+=((gz?gz.y:my)-gy)*.12;
+  head.rotation.y+=(gx*.5-head.rotation.y)*.07;head.rotation.x+=(gy*.28-head.rotation.x)*.07;
   head.rotation.z=Math.sin(t*.9)*.015+(emo==='thinking'?.12:0);
   antTip.rotation.z=Math.sin(t*3)*.12;antTip.rotation.x=Math.cos(t*2.3)*.1;
   bulb.material.color.setHSL(.12,1,.62+.12*Math.sin(t*4));halo.material.opacity=.6+.25*Math.sin(t*4);
@@ -276,8 +287,8 @@ const clock=new T.Clock();let nextBlink=2,blink=0;
     e.up.rotation.x+=((.55-open*2.0)-e.up.rotation.x)*.35;
     e.up.rotation.z+=(e.sd*target.tilt-e.up.rotation.z)*.2;
     e.lo.rotation.x+=((1.5-target.low*1.4)-e.lo.rotation.x)*.25;
-    e.ball.rotation.y+=((mx*.45-head.rotation.y*.5)-e.ball.rotation.y)*.12;
-    e.ball.rotation.x+=((my*.3)-e.ball.rotation.x)*.12;
+    e.ball.rotation.y+=((gx*.45-head.rotation.y*.5)-e.ball.rotation.y)*.12;
+    e.ball.rotation.x+=((gy*.3)-e.ball.rotation.x)*.12;
     const ps=target.pup;e.pupil.scale.x+=(ps-e.pupil.scale.x)*.15;e.pupil.scale.y=e.pupil.scale.x;
   });
   updateLeds(t);
@@ -288,19 +299,8 @@ const clock=new T.Clock();let nextBlink=2,blink=0;
   renderer.render(scene,camera);
 })();
 
-// ================= Visión =================
-let camOK=false;
-async function startCam(){try{cam.srcObject=await navigator.mediaDevices.getUserMedia({video:true});camOK=true}catch(e){cam.style.display='none'}}
-function snap(){
-  if(!camOK||!cam.videoWidth)return null;
-  const c=document.createElement('canvas');c.width=640;c.height=Math.round(640*cam.videoHeight/cam.videoWidth);
-  c.getContext('2d').drawImage(cam,0,0,c.width,c.height);
-  return c.toDataURL('image/jpeg',.7).split(',')[1];
-}
-
 // ================= Voz =================
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let history=[];
 function speak(text,emotion){
   return new Promise(res=>{
     setEmotion(emotion);status.textContent=LABEL[emotion]||'';
@@ -312,40 +312,29 @@ function speak(text,emotion){
     speechSynthesis.cancel();speechSynthesis.speak(u);
   });
 }
-async function think(userText){
-  const k=localStorage.getItem('key');
-  if(!k)return{emotion:'sad',text:'Necesito una clave de API. Toca el engranaje arriba a la derecha.'};
-  const img=snap();const content=[];
-  if(img)content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:img}});
-  content.push({type:'text',text:userText});
-  history.push({role:'user',content});
-  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({model:'claude-haiku-5-5',max_tokens:300,
-    system:'Eres Blu, un robot azul tierno y amigable. Hablas en español de México, con frases cortas (máx 2), cariñosas, dulces y naturales, como una personita tierna. Nunca uses emojis, emoticones ni símbolos; solo palabras. Recibes lo que dice la persona y una imagen de tu cámara: úsala para ver a la persona y su entorno. Responde SOLO JSON: {"emotion":"neutral|happy|sad|surprised|thinking|love|angry|sleepy","text":"..."} con la emoción que sientes.',
-    messages:history.slice(-8)})});
-  const d=await r.json();
-  if(!r.ok){history.pop();return{emotion:'sad',text:'Uy, algo falló: '+(d.error?.message||r.status)}}
-  const raw=d.content[0].text;
-  history[history.length-1].content=[{type:'text',text:userText}];
-  history.push({role:'assistant',content:raw});
-  try{return JSON.parse(raw.match(/\{[\s\S]*\}/)[0])}catch{return{emotion:'happy',text:raw}}
+const sid=Math.random().toString(36).slice(2);
+async function turn(text){
+  const a=Brain.reply(text,{vision:Vision.summary()});
+  fetch('/api/log',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,
+    body:JSON.stringify({session:sid,user_text:text,intent:a.tag,confidence:a.conf,reply:a.text,emotion:a.emotion,vision:Vision.snapshot(),model_version:Brain.version})}).catch(()=>{});
+  await new Promise(r=>setTimeout(r,300+Math.random()*400));   // pausa natural antes de contestar
+  await speak(a.text,a.emotion);
 }
 let busy=false;
 $('talk').onclick=()=>{
   if(!SR){status.textContent='Usa Chrome o Edge para el micrófono';return}
   if(busy)return;busy=true;
-  const rec=new SR();rec.lang='es-ES';
+  const rec=new SR();rec.lang='es-MX';
   setEmotion('listening');status.textContent='Te escucho...';
   rec.onresult=async e=>{
     const t=e.results[0][0].transcript;status.textContent='';setEmotion('thinking');
-    try{const a=await think(t);await speak(a.text,a.emotion)}catch(err){await speak('No pude conectarme.','sad')}
-    await new Promise(r=>setTimeout(r,3500));setEmotion('happy');busy=false;
+    try{await turn(t)}catch(err){console.error(err);await speak('Se me enredó el cerebro, intenta otra vez.','sad')}
+    await new Promise(r=>setTimeout(r,3500));setEmotion('happy');status.textContent='';busy=false;
   };
   rec.onerror=()=>{setEmotion('sad');status.textContent='No te oí, intenta otra vez';busy=false};
-  rec.onend=()=>{if(emo==='listening'){setEmotion('neutral');busy=false}};
+  rec.onend=()=>{if(emo==='listening'){setEmotion('neutral');status.textContent='';busy=false}};
   rec.start();
 };
-$('gear').onclick=()=>{const k=prompt('Clave de API de Anthropic (se guarda solo en este navegador):');if(k)localStorage.setItem('key',k.trim())};
 // elige la voz española más natural disponible (preferir femeninas neuronales/en línea, es-MX)
 let VOICE=null;
 function pickVoice(){
@@ -355,7 +344,28 @@ function pickVoice(){
   VOICE=vs.sort((a,b)=>score(b)-score(a))[0];return VOICE;
 }
 speechSynthesis.onvoiceschanged=()=>{VOICE=null;pickVoice()};
-startCam();
+// ================= Arranque =================
+$('talk').disabled=true;status.textContent='Despertando mi cerebro...';
+Brain.load().then(()=>{$('talk').disabled=false;status.textContent='Toca el botón para hablar conmigo'})
+  .catch(()=>{status.textContent='No pude cargar mi cerebro. Revisa tu internet.'});
+Vision.start(cam);
+
+// ================= PWA: instalación y actualización inmediata =================
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+let VER=null,pendingReload=false;
+function reloadApp(){const r=navigator.serviceWorker&&navigator.serviceWorker.getRegistration();(r?r.then(x=>x&&x.update()):Promise.resolve()).catch(()=>{}).finally(()=>location.reload())}
+async function checkVersion(v){
+  if(!v){try{v=await fetch('/api/version',{cache:'no-store'}).then(r=>r.json())}catch{return}}
+  if(!VER){VER=v;return}
+  if(v.version===VER.version)return;
+  const appChanged=v.app!==VER.app;VER=v;
+  if(appChanged){if(busy||speaking)pendingReload=true;else reloadApp()}      // código nuevo: recarga
+  else Brain.load().catch(()=>{});                                             // solo cerebro nuevo: se cambia en caliente
+}
+setInterval(()=>{if(pendingReload&&!busy&&!speaking)reloadApp()},1500);
+try{const es=new EventSource('/api/events');es.addEventListener('version',e=>checkVersion(JSON.parse(e.data)))}catch{}
+addEventListener('visibilitychange',()=>{if(!document.hidden)checkVersion()});
+setInterval(checkVersion,60000);checkVersion();
 </script>
 </body>
 </html>

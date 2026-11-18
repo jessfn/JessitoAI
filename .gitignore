@@ -1,0 +1,8 @@
+node_modules/
+train/.venv/
+__pycache__/
+.env
+.tmp_model/
+.exp_*.log
+public/version.json
+public/model/
