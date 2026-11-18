@@ -11,7 +11,7 @@ if [ -d train/.venv ]; then train/.venv/bin/pip install -q -r train/requirements
 if [ -f /etc/jessito.env ] && [ -d train/.venv ]; then
   set -a; . /etc/jessito.env; set +a
   train/.venv/bin/python train/seed.py
-  if [ "${1:-}" = "--train" ]; then (cd train && .venv/bin/python brain.py); fi
+  if [ "${1:-}" = "--train" ]; then (cd train && .venv/bin/python brain.py && .venv/bin/python gen.py); fi
 fi
 python3 - <<'PY'
 import json, subprocess, time, os

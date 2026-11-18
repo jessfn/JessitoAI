@@ -29,6 +29,7 @@ video{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:
 <div id="ui"><div id="status">Toca el botón para hablar conmigo</div><button id="talk">Hablar</button></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="brain.js"></script>
+<script src="gen.js"></script>
 <script src="vision.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -355,7 +356,7 @@ async function turn(text){
   const a=Brain.reply(text,{vision:Vision.summary()});
   if(a.action)applyAction(a.action);
   fetch('/api/log',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,
-    body:JSON.stringify({session:sid,user_text:text,intent:a.tag,confidence:a.conf,reply:a.text,emotion:a.emotion,vision:Vision.snapshot(),model_version:Brain.version})}).catch(()=>{});
+    body:JSON.stringify({session:sid,user_text:text,intent:a.tag,confidence:a.conf,reply:a.text,emotion:a.emotion,vision:Vision.snapshot(),model_version:Brain.version+(a.gen?'+gen':'')})}).catch(()=>{});
   await new Promise(r=>setTimeout(r,300+Math.random()*400));   // pausa natural antes de contestar
   await speak(a.text,a.emotion);
 }
@@ -401,6 +402,7 @@ function autoStart(){                                           // si ya la usab
 }
 // ================= Arranque =================
 $('talk').disabled=true;$('talk').textContent='Escuchar';status.textContent='Despertando mi cerebro...';
+Gen.load().catch(()=>{});
 Brain.load().then(()=>{$('talk').disabled=false;status.textContent='Toca el botón y háblame, yo te escucho.';autoStart()})
   .catch(()=>{status.textContent='No pude cargar mi cerebro. Revisa tu internet.'});
 Vision.start(cam);
@@ -415,7 +417,7 @@ async function checkVersion(v){
   if(v.version===VER.version)return;
   const appChanged=v.app!==VER.app;VER=v;
   if(appChanged){if(busyTurn||talking)pendingReload=true;else reloadApp()}      // código nuevo: recarga
-  else Brain.load().catch(()=>{});                                             // solo cerebro nuevo: se cambia en caliente
+  else{Brain.load().catch(()=>{});Gen.load().catch(()=>{})}                                             // solo cerebro nuevo: se cambia en caliente
 }
 setInterval(()=>{if(pendingReload&&!busyTurn&&!talking)reloadApp()},1500);
 try{const es=new EventSource('/api/events');es.addEventListener('version',e=>checkVersion(JSON.parse(e.data)))}catch{}

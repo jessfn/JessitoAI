@@ -1,2 +1,3 @@
 numpy
 psycopg2-binary
+# torch (solo CPU) se instala aparte: pip install torch --index-url https://download.pytorch.org/whl/cpu

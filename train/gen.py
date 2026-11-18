@@ -28,7 +28,7 @@ def detok(t):
         if w in '.,;:!?…' and i:
             out += w; cap = w in '.!?…'; continue
         if w in '¿¡':
-            out += (' ' if out and not out.endswith(' ') else '') + w; cap = False; continue
+            out += (' ' if out and not out.endswith(' ') else '') + w; continue
         word = PROPER.get(w, w)
         if cap: word = word[0].upper() + word[1:]
         out += ('' if (not out or out.endswith(('¿', '¡'))) else ' ') + word
@@ -69,20 +69,23 @@ def variant(t, e, rng):
 
 # ---------------- modelo ----------------
 class G(nn.Module):
-    def __init__(s, V, B, D, H, Ed):
+    def __init__(s, V, B, D, H, Ed, NT, Ti=48):
         super().__init__()
-        s.bag = nn.EmbeddingBag(B, D, mode='sum'); s.fc = nn.Linear(D, H); s.emo = nn.Linear(H, len(EMO))
-        s.init = nn.Linear(H, H); s.emb = nn.Embedding(V, Ed, padding_idx=PAD)
-        s.gru = nn.GRU(Ed + H, H, batch_first=True); s.out = nn.Linear(H, V); s.dp = nn.Dropout(.15)
+        s.NT = NT
+        s.bag = nn.EmbeddingBag(B, D, mode='sum'); s.fc = nn.Linear(D, H); s.intent = nn.Embedding(NT + 1, Ti)
+        s.emo = nn.Linear(H + Ti, len(EMO)); s.init = nn.Linear(H + Ti, H); s.emb = nn.Embedding(V, Ed, padding_idx=PAD)
+        s.gru = nn.GRU(Ed + H + Ti, H, batch_first=True); s.out = nn.Linear(H, V); s.dp = nn.Dropout(.15)
         nn.init.normal_(s.bag.weight, 0, .1)
     def encode(s, idx, off, w):
         return torch.tanh(s.fc(s.bag(idx, off, per_sample_weights=w)))
-    def forward(s, idx, off, w, inp):
-        c = s.dp(s.encode(idx, off, w))
-        h = torch.tanh(s.init(c)).unsqueeze(0)
-        x = torch.cat([s.dp(s.emb(inp)), c.unsqueeze(1).expand(-1, inp.size(1), -1)], -1)
+    def ctx(s, idx, off, w, t):
+        return torch.cat([s.dp(s.encode(idx, off, w)), s.intent(t)], -1)
+    def forward(s, idx, off, w, inp, t):
+        z = s.ctx(idx, off, w, t)
+        h = torch.tanh(s.init(z)).unsqueeze(0)
+        x = torch.cat([s.dp(s.emb(inp)), z.unsqueeze(1).expand(-1, inp.size(1), -1)], -1)
         o, _ = s.gru(x, h)
-        return s.out(s.dp(o)), s.emo(c)
+        return s.out(s.dp(o)), s.emo(z)
 
 def batchify(counts):
     idx, off, w = [], [], []
@@ -94,13 +97,13 @@ def batchify(counts):
 
 # ---------------- generación (igual que en gen.js) ----------------
 @torch.no_grad()
-def generate(m, text, itos, rng, temp=.7, top_p=.92, maxlen=40):
+def generate(m, text, tid, itos, rng, temp=.7, top_p=.92, maxlen=40):
     m.eval()
-    c = m.encode(*batchify([BR.feature_counts(text)]))
-    h = torch.tanh(m.init(c)).unsqueeze(0)
+    z = torch.cat([m.encode(*batchify([BR.feature_counts(text)])), m.intent(torch.tensor([tid]))], -1)
+    h = torch.tanh(m.init(z)).unsqueeze(0)
     prev, out, lp = BOS, [], 0.0
     for t in range(maxlen):
-        x = torch.cat([m.emb(torch.tensor([[prev]])), c.unsqueeze(1)], -1)
+        x = torch.cat([m.emb(torch.tensor([[prev]])), z.unsqueeze(1)], -1)
         o, h = m.gru(x, h)
         lg = m.out(o[:, 0])[0]
         lg[[PAD, BOS, UNK]] = -1e9
@@ -115,18 +118,18 @@ def generate(m, text, itos, rng, temp=.7, top_p=.92, maxlen=40):
         lp += logp[nxt].item()
         if nxt == EOS: break
         out.append(nxt); prev = nxt
-    emo = F.softmax(m.emo(c)[0], -1)
+    emo = F.softmax(m.emo(z)[0], -1)
     return detok([itos[i] for i in out]), lp / max(1, len(out) + 1), EMO[int(emo.argmax())], float(emo.max())
 
-def export(m, vocab, out, ver, meta):
+def export(m, vocab, tags, out, ver, meta):
     os.makedirs(out, exist_ok=True)
     sd = m.state_dict()
     order = ['bag.weight', 'fc.weight', 'fc.bias', 'emo.weight', 'emo.bias', 'init.weight', 'init.bias', 'emb.weight',
-             'gru.weight_ih_l0', 'gru.weight_hh_l0', 'gru.bias_ih_l0', 'gru.bias_hh_l0', 'out.weight', 'out.bias']
+             'gru.weight_ih_l0', 'gru.weight_hh_l0', 'gru.bias_ih_l0', 'gru.bias_hh_l0', 'out.weight', 'out.bias', 'intent.weight']
     blob = b''.join(sd[k].detach().cpu().numpy().astype('<f2').tobytes() for k in order)
     tmp = os.path.join(out, 'gen.bin.tmp'); open(tmp, 'wb').write(blob); os.replace(tmp, os.path.join(out, 'gen.bin'))
     cfg = dict(version=ver, V=len(vocab), B=BR.B, D=m.fc.in_features, H=m.fc.out_features, Ed=m.emb.embedding_dim,
-               vocab=vocab, emotions=EMO, order=order, **meta)
+               vocab=vocab, tags=tags, Ti=m.intent.embedding_dim, emotions=EMO, order=order, **meta)
     tmp = os.path.join(out, 'gen.json.tmp'); json.dump(cfg, open(tmp, 'w', encoding='utf-8'), ensure_ascii=False)
     os.replace(tmp, os.path.join(out, 'gen.json'))
     vp = os.path.join(os.path.dirname(os.path.abspath(out)), 'version.json')
@@ -166,7 +169,8 @@ def main():
             hold[it['tag']] = rng.sample(it['users'], max(1, len(it['users']) // 14))
     holdset = {u for v in hold.values() for u in v}
 
-    m = G(len(vocab), BR.B, 96, a.H, 128)
+    tags = [i['tag'] for i in use]; tid = {t: k for k, t in enumerate(tags)}
+    m = G(len(vocab), BR.B, 96, a.H, 128, len(tags))
     print(f'parametros: {sum(p.numel() for p in m.parameters()) / 1e6:.2f} millones')
     opt = torch.optim.AdamW(m.parameters(), lr=2e-3, weight_decay=1e-4)
     pairs_all = [(u, it) for it in use for u in it['users'] if u not in holdset]
@@ -178,7 +182,7 @@ def main():
             for t, e in rng.sample(it['replies'], min(a.per, len(it['replies']))) if len(it['replies']) >= a.per else [rng.choice(it['replies']) for _ in range(a.per)]:
                 x = BR.augment(u, rng) if rng.random() < .6 else u
                 y = [BOS] + [stoi.get(w, UNK) for w in tok(variant(t, e, rng))][:38] + [EOS]
-                data.append((x, y, EMO.index(e) if e in EMO else 1))
+                data.append((x, y, EMO.index(e) if e in EMO else 1, m.NT if rng.random() < .12 else tid[it['tag']]))
         rng.shuffle(data)
         data.sort(key=lambda d: len(d[1]) + rng.random() * 6)            # lotes de longitud parecida
         batches = [data[i:i + 64] for i in range(0, len(data), 64)]; rng.shuffle(batches)
@@ -186,12 +190,12 @@ def main():
         for b in batches:
             lr = 2e-3 * (.5 * (1 + math.cos(math.pi * step / steps_total)) * .95 + .05); step += 1
             for g in opt.param_groups: g['lr'] = lr
-            idx, off, w = batchify([BR.feature_counts(x) for x, _, _ in b])
-            L = max(len(y) for _, y, _ in b)
-            Y = torch.tensor([y + [PAD] * (L - len(y)) for _, y, _ in b])
-            logits, emo = m(idx, off, w, Y[:, :-1])
+            idx, off, w = batchify([BR.feature_counts(x) for x, _, _, _ in b])
+            L = max(len(y) for _, y, _, _ in b)
+            Y = torch.tensor([y + [PAD] * (L - len(y)) for _, y, _, _ in b])
+            logits, emo = m(idx, off, w, Y[:, :-1], torch.tensor([t for _, _, _, t in b]))
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), Y[:, 1:].reshape(-1), ignore_index=PAD) \
-                 + .5 * F.cross_entropy(emo, torch.tensor([e for _, _, e in b]))
+                 + .5 * F.cross_entropy(emo, torch.tensor([e for _, _, e, _ in b]))
             opt.zero_grad(); loss.backward(); nn.utils.clip_grad_norm_(m.parameters(), 1.0); opt.step(); tot += loss.item()
         if ep % 5 == 0 or ep == a.epochs - 1:
             print(f'  epoca {ep + 1:3d}/{a.epochs}  perdida {tot / len(batches):.3f}  ({time.time() - t0:.0f}s)', flush=True)
@@ -200,19 +204,20 @@ def main():
     itos = vocab; samples = []
     print('--- ejemplos con frases nuevas ---')
     r2 = random.Random(5)
+    m.eval()
     for tag, us in list(hold.items())[:40]:
-        u = us[0]; txt, lp, emo, ep_ = generate(m, u, itos, r2)
+        u = us[0]; txt, lp, emo, ep_ = generate(m, u, tid[tag], itos, r2)
         samples.append(lp); print(f'[{tag}] "{u}" -> ({emo} {ep_:.2f}, logp {lp:.2f}) {txt}')
     emo_ok = 0; emo_n = 0
     for it in use:
         if it['tag'] in hold:
             for u in hold[it['tag']]:
-                c = m.encode(*batchify([BR.feature_counts(u)])); pe = EMO[int(m.emo(c)[0].argmax())]
+                z = torch.cat([m.encode(*batchify([BR.feature_counts(u)])), m.intent(torch.tensor([tid[it['tag']]]))], -1); pe = EMO[int(m.emo(z)[0].argmax())]
                 emo_n += 1; emo_ok += pe in {e for _, e in it['replies']}
     print(f'emocion correcta en frases nuevas: {emo_ok}/{emo_n} = {100 * emo_ok / max(1, emo_n):.1f}%')
     med = float(np.median(samples)) if samples else -1.5
     ver = time.strftime('%Y%m%d%H%M%S')
-    export(m, vocab, a.out, ver, dict(min_logp=round(min(-0.9, med - 0.45), 2), n_pairs=len(pairs_all), trained_at=time.strftime('%Y-%m-%d %H:%M:%S'),
+    export(m, vocab, tags, a.out, ver, dict(min_logp=round(min(-0.9, med - 0.45), 2), n_pairs=len(pairs_all), trained_at=time.strftime('%Y-%m-%d %H:%M:%S'),
                                       emo_acc=round(emo_ok / max(1, emo_n), 3)))
     url = os.environ.get('DATABASE_URL')
     if url:

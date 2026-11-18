@@ -48,11 +48,18 @@ const train = { running: false, log: [], started: null, code: null };
 function startTrain() {
   if (train.running) return false;
   train.running = true; train.log = []; train.started = Date.now(); train.code = null;
-  const p = spawn(PYTHON, ['brain.py'], { cwd: path.join(ROOT, 'train'), env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
-  const push = d => { train.log.push(...d.toString().split('\n').filter(Boolean)); train.log = train.log.slice(-120); };
-  p.stdout.on('data', push); p.stderr.on('data', push);
-  p.on('close', code => { train.running = false; train.code = code; });
-  p.on('error', e => { train.running = false; train.code = -1; train.log.push('error: ' + e.message); });
+  const push = d => { train.log.push(...d.toString().split('
+').filter(Boolean)); train.log = train.log.slice(-120); };
+  const steps = ['brain.py', 'gen.py'];                       // 1) clasificador de intención  2) generador de respuestas
+  const next = i => {
+    if (i >= steps.length) { train.running = false; train.code = 0; return; }
+    train.log.push(`== ${steps[i]} ==`);
+    const p = spawn(PYTHON, [steps[i]], { cwd: path.join(ROOT, 'train'), env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+    p.stdout.on('data', push); p.stderr.on('data', push);
+    p.on('close', code => { if (code !== 0) { train.running = false; train.code = code; } else next(i + 1); });
+    p.on('error', e => { train.running = false; train.code = -1; train.log.push('error: ' + e.message); });
+  };
+  next(0);
   return true;
 }
 

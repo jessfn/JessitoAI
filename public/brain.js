@@ -129,7 +129,7 @@ const Brain = (() => {
   const JOY = new Set(['feliz_usuario', 'logro', 'esperanza', 'anticipacion', 'amigos_salida', 'viaje', 'ejercicio', 'apariencia', 'estudios_logros', 'amor', 'cumpleanos', 'te_quiero', 'cumplido']);
   const QSTART = /^(que|como|cuando|donde|por que|porque|cual|cuales|quien|quienes|cuanto|cuantos|cuanta|cuantas|sabes|puedes|existe|es verdad|es cierto|crees que)\b/;
   const LAUGH = /\b(ja|jaja|jajaja|jeje|jejeje|lol|xd|haha)\b|jaja/;
-  const TH_LOW = 0.55;
+  const TH_LOW = 0.55, GEN_P = 0.85;       // 85% de las veces escribe una respuesta nueva; 15% elige una escrita
 
   function pickFrom(list, key) {
     if (list.length === 1) return list[0];
@@ -157,7 +157,7 @@ const Brain = (() => {
     if (!M) return { tag: 'no_entiendo', conf: 0, text: 'Todavía estoy despertando mi cerebro, dame un segundito.', emotion: 'thinking', low: true };
     const { best, p } = predict(text);
     const real = { tag: M.intents[best].tag, conf: p };
-    let it = M.intents[best], low = p < TH_LOW, r, out, via = '';
+    let it = M.intents[best], low = p < TH_LOW, r, out, via = '', generated = false;
     if (low) {
       const c = continuation(text);
       if (c) { r = c.r; out = r.t; via = c.key; it = { tag: c.key }; }
@@ -178,7 +178,12 @@ const Brain = (() => {
         case 'mi_mascota': out = f.pet ? `Tienes un ${f.pet.type}${f.pet.name ? ' y se llama ' + f.pet.name : ', pero no me has dicho cómo se llama'}.` : 'No me has contado de mascotas. ¿Tienes alguna?'; break;
         case 'que_me_gusta': out = mem.likes.length ? `Me has dicho que te gusta ${join(mem.likes.slice(-5))}.` : 'Todavía no me has dicho qué te gusta. Cuéntame.'; break;
         case 'emocion_ahora': { const lm = lastMood(3); out = lm ? `Por lo que me has contado, creo que te sientes ${lm.m}. ¿Voy bien?` : 'No puedo leer la mente, pero por tu voz creo que estás tranquilo. ¿Cómo te sientes en realidad?'; break; }
-        default: out = r.t;
+        default:
+          out = r.t;
+          if (!low && !/^(voz_|volumen_)|recordar_esto|crisis/.test(it.tag) && typeof Gen !== 'undefined' && Gen.ready && Math.random() < GEN_P) {
+            const g = Gen.generate(text, it.tag);                // el cerebro escribe la respuesta
+            if (g) { out = g.text; r = { t: out, e: g.emoP > 0.5 ? g.emotion : r.e }; generated = true; }
+          }
       }
     }
     out = out.replace('{nombre}', mem.facts.name || 'amigo').replace('{hora}', horaTxt()).replace('{fecha}', fechaTxt());
@@ -187,8 +192,9 @@ const Brain = (() => {
     if (it.tag !== 'repetir') lastReply = out;
     prevTag = via ? (EMPATHY.has(prevTag) && via === 'cont_empatia' ? prevTag : (via === 'cont_empatia' ? 'triste_usuario' : prevTag)) : it.tag;
     cap(mem.turns, 40); mem.turns.push({ u: text.slice(0, 160), tag: real.tag, t: Date.now() }); save();
-    return { tag: real.tag, conf: real.conf, text: out, emotion: r.e, low, action, via };
+    const emotion = !r.e || r.e === 'neutral' ? 'happy' : r.e;        // por defecto, feliz; cambia según la emoción
+    return { tag: real.tag, conf: real.conf, text: out, emotion, low, action, via, gen: generated };
   }
 
-  return { load, reply, device, get version() { return M && M.version; }, get info() { return M; }, get memory() { return mem; }, forget() { mem = fresh(); save(); } };
+  return { load, reply, device, features: counts, get version() { return M && M.version; }, get info() { return M; }, get memory() { return mem; }, forget() { mem = fresh(); save(); } };
 })();
