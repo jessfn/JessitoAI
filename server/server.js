@@ -48,8 +48,7 @@ const train = { running: false, log: [], started: null, code: null };
 function startTrain() {
   if (train.running) return false;
   train.running = true; train.log = []; train.started = Date.now(); train.code = null;
-  const push = d => { train.log.push(...d.toString().split('
-').filter(Boolean)); train.log = train.log.slice(-120); };
+  const push = d => { train.log.push(...d.toString().split('\n').filter(Boolean)); train.log = train.log.slice(-120); };
   const steps = ['brain.py', 'gen.py'];                       // 1) clasificador de intención  2) generador de respuestas
   const next = i => {
     if (i >= steps.length) { train.running = false; train.code = 0; return; }
