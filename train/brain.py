@@ -110,6 +110,17 @@ def load_data():
         cur.execute("SELECT intent_id,text,emotion FROM responses")
         for iid, t, e in cur.fetchall():
             by[iid]['replies'].append((t, e))
+        if os.environ.get('LEARN_LOGS', '1') == '1':
+            tags = {x['tag']: x for x in intents}
+            cur.execute("""SELECT user_text,intent FROM conversations
+                           WHERE confidence>=0.93 AND intent IS NOT NULL AND intent<>'no_entiendo'
+                             AND length(user_text) BETWEEN 3 AND 90 ORDER BY id DESC LIMIT 8000""")
+            taken = {}
+            for t, tag in cur.fetchall():
+                k = norm(t)
+                if tag in tags and k and k not in seen and taken.get(tag, 0) < 150:
+                    seen.add(k); tags[tag]['users'].append(t); taken[tag] = taken.get(tag, 0) + 1
+            if taken: print(f'aprendiendo de conversaciones reales: {sum(taken.values())} frases')
         con.close()
         return intents, 'postgres'
     from seed_data import I
@@ -221,7 +232,7 @@ def export(net, intents, out, meta):
     blob = b''.join(a.astype('<f4').tobytes() for a in arrs)
     tmp = os.path.join(out, 'weights.bin.tmp')
     open(tmp, 'wb').write(blob); os.replace(tmp, os.path.join(out, 'weights.bin'))
-    model = dict(B=B, D=D, H=H, NI=len(intents), version=meta['version'], threshold=0.5,
+    model = dict(B=B, D=D, H=H, NI=len(intents), pools={p['tag']: [dict(t=t, e=e) for t, e in p['replies']] for p in meta.get('pools', [])}, version=meta['version'], threshold=0.5,
                  trained_at=meta['trained_at'], n_examples=meta['n_examples'], val_acc=meta['val_acc'],
                  intents=[dict(tag=i['tag'], emotion=i['emotion'],
                                replies=[dict(t=t, e=e) for t, e in i['replies']]) for i in intents])
@@ -247,6 +258,7 @@ def main():
     t0 = time.time()
     rng = random.Random(a.seed); nrng = np.random.default_rng(a.seed)
     intents, src = load_data()
+    pools = [i for i in intents if not i['users'] and i['replies']]
     intents = [i for i in intents if i['users'] and i['replies']]
     tags = [i['tag'] for i in intents]
     assert 'no_entiendo' in tags, 'falta la intencion no_entiendo'
@@ -272,7 +284,7 @@ def main():
     train(net, X, Y, a.epochs, nrng)
     tr = accuracy(net, [x for x in X[:4000]], Y[:4000])
     ver = time.strftime('%Y%m%d%H%M%S')
-    export(net, intents, a.out, dict(version=ver, trained_at=time.strftime('%Y-%m-%d %H:%M:%S'),
+    export(net, intents, a.out, dict(pools=pools, version=ver, trained_at=time.strftime('%Y-%m-%d %H:%M:%S'),
                                      n_examples=len(X), val_acc=round(val, 4)))
     print(f'listo en {time.time() - t0:.0f}s | version {ver} | exportado en {os.path.abspath(a.out)}')
     url = os.environ.get('DATABASE_URL')

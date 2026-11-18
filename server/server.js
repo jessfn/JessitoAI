@@ -82,6 +82,21 @@ async function route(req, res) {
     return send(res, 200, { ok: true });
   }
 
+  // ----- recuerdos (respaldo de la memoria del dispositivo) -----
+  if (p === '/api/memory') {
+    if (limited('m' + ip, 60)) return send(res, 429, { error: 'demasiadas' });
+    if (req.method === 'POST') {
+      const b = await readBody(req, 12000);
+      const dev = str(b.device, 64); if (!/^[a-z0-9]{8,64}$/.test(dev) || !b.memory || typeof b.memory !== 'object') return send(res, 400, { error: 'datos inválidos' });
+      const js = JSON.stringify(b.memory); if (js.length > 10000) return send(res, 413, { error: 'grande' });
+      await pool.query('INSERT INTO memories(device,data,updated_at) VALUES ($1,$2,now()) ON CONFLICT (device) DO UPDATE SET data=EXCLUDED.data,updated_at=now()', [dev, js]);
+      return send(res, 200, { ok: true });
+    }
+    const dev = str(url.searchParams.get('device'), 64);
+    const r = await pool.query('SELECT data FROM memories WHERE device=$1', [dev]);
+    return send(res, 200, { memory: r.rows[0] ? r.rows[0].data : null });
+  }
+
   // ----- administración -----
   if (p.startsWith('/api/admin/')) {
     if (limited('adm' + ip, 120) ) return send(res, 429, { error: 'demasiadas' });

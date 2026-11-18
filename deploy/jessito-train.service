@@ -1,0 +1,11 @@
+[Unit]
+Description=Entrena la red neuronal de Blu con los datos de PostgreSQL
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/var/www/jessito/train
+EnvironmentFile=/etc/jessito.env
+Environment=PYTHONIOENCODING=utf-8
+ExecStart=/var/www/jessito/train/.venv/bin/python brain.py
+Nice=10

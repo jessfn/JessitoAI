@@ -48,3 +48,8 @@ CREATE TABLE IF NOT EXISTS training_runs (
   train_acc   REAL,
   notes       TEXT
 );
+CREATE TABLE IF NOT EXISTS memories (            -- recuerdos de cada dispositivo (respaldo de la memoria local)
+  device     TEXT PRIMARY KEY,
+  data       JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);

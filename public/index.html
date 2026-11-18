@@ -18,10 +18,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%}
 #status{min-height:26px;margin-bottom:10px;font-size:18px;opacity:.85;text-shadow:0 0 12px #3a8dff}
 button{font:inherit;border:0;border-radius:999px;padding:14px 30px;background:linear-gradient(#58a6ff,#2f7be8);color:#fff;font-size:18px;cursor:pointer;box-shadow:0 0 28px #3a8dff88,0 6px 0 #1f5fc0}
 button:active{transform:translateY(4px);box-shadow:0 0 28px #3a8dff88,0 2px 0 #1f5fc0}
-@media (max-width:600px){#status{font-size:16px}button{padding:13px 28px}video{width:72px!important;left:10px!important;top:calc(10px + env(safe-area-inset-top));bottom:auto!important}}
+@media (max-width:600px){#status{font-size:16px}button{padding:13px 28px}}
 @media (max-height:420px){#status{display:none}}
 button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-video{position:fixed;left:12px;bottom:12px;width:110px;border-radius:14px;border:2px solid #3a8dff88;transform:scaleX(-1);opacity:.85}
+video{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -301,52 +301,107 @@ const clock=new T.Clock();let nextBlink=2,blink=0;
 
 // ================= Voz =================
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const VS=(()=>{const v={rate:1,pitch:1,vol:1,alt:0};try{Object.assign(v,JSON.parse(localStorage.getItem('blu_voice')||'{}'))}catch{}return v})();
+const saveVS=()=>{try{localStorage.setItem('blu_voice',JSON.stringify(VS))}catch{}};
+// ritmo y tono según la emoción: [velocidad, tono]
+const PROS={happy:[1.03,1.08],sad:[.88,.9],surprised:[1.08,1.15],thinking:[.92,1],love:[.92,1.06],angry:[1.05,.95],listening:[.98,1],sleepy:[.8,.92],neutral:[1,1]};
+let VOICES=null,talking=false,speakGen=0;
+function voicesEs(){
+  if(VOICES)return VOICES;
+  const vs=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang));if(!vs.length)return[];
+  const score=v=>(/natural|neural|online/i.test(v.name)?50:0)+(/google/i.test(v.name)?35:0)+(/dalia|paulina|sabina|elvira|helena|lucia|laura|monica|mónica|female|mujer|sonia|salome|salomé|valentina|camila|elena/i.test(v.name)?30:0)+(/es-MX/i.test(v.lang)?12:/es-US|es-419/i.test(v.lang)?8:/es-ES/i.test(v.lang)?4:0)+(/jorge|diego|pablo|raul|raúl|male|hombre|alvaro|álvaro|enrique/i.test(v.name)?-40:0)+(v.localService?0:5);
+  return VOICES=vs.sort((a,b)=>score(b)-score(a));
+}
+const pickVoice=(alt=0)=>{const l=voicesEs();return l.length?l[alt%l.length]:null};
+speechSynthesis.onvoiceschanged=()=>{VOICES=null};
 function speak(text,emotion){
   return new Promise(res=>{
     setEmotion(emotion);status.textContent=LABEL[emotion]||'';
-    const u=new SpeechSynthesisUtterance(text.replace(/[\p{Extended_Pictographic}\uFE0F\u200D*_#~`]/gu,'').replace(/\s+/g,' ').trim());
-    const v=pickVoice();if(v){u.voice=v;u.lang=v.lang}else u.lang='es-MX';
-    u.pitch=v&&/natural|online|neural|google/i.test(v.name)?1.08:1.25;u.rate=.94;u.volume=1;
-    u.onstart=()=>speaking=true;
-    u.onend=u.onerror=()=>{speaking=false;res()};
-    speechSynthesis.cancel();speechSynthesis.speak(u);
+    stopListening(true);                                   // no escucharse a sí mismo
+    const clean=text.replace(/[\p{Extended_Pictographic}️‍*_#~`]/gu,'').replace(/\s+/g,' ').trim();
+    const parts=(clean.match(/[^.!?¿¡]+[.!?]*|[.!?]+/g)||[clean]).map(x=>x.trim()).filter(Boolean);
+    const v=pickVoice(VS.alt),[pr,pp]=PROS[emotion]||PROS.neutral,gen=++speakGen,natural=v&&/natural|online|neural|google/i.test(v.name);
+    let i=0;talking=true;speaking=true;
+    const done=()=>{talking=false;speaking=false;res()};
+    const next=()=>{
+      if(gen!==speakGen)return done();
+      if(i>=parts.length)return done();
+      const q=parts[i++],u=new SpeechSynthesisUtterance(q);
+      if(v){u.voice=v;u.lang=v.lang}else u.lang='es-MX';
+      u.rate=Math.min(1.6,Math.max(.5,(natural?.97:.93)*pr*VS.rate));
+      u.pitch=Math.min(2,Math.max(.3,(natural?1.05:1.22)*pp*VS.pitch*(/\?$/.test(q)?1.04:1)));
+      u.volume=VS.vol;
+      u.onend=u.onerror=()=>{setTimeout(next,/[.!?]$/.test(q)?230:90)};   // pausa natural entre frases
+      speechSynthesis.speak(u);
+    };
+    speechSynthesis.cancel();setTimeout(next,60);
   });
+}
+function applyAction(a){                                    // "habla más despacio", "otra voz", etc.
+  switch(a){
+    case 'voz_lento':VS.rate=Math.max(.6,VS.rate-.15);break;
+    case 'voz_rapido':VS.rate=Math.min(1.5,VS.rate+.15);break;
+    case 'voz_aguda':VS.pitch=Math.min(1.6,VS.pitch+.15);break;
+    case 'voz_grave':VS.pitch=Math.max(.6,VS.pitch-.15);break;
+    case 'voz_normal':VS.rate=1;VS.pitch=1;VS.vol=1;VS.alt=0;break;
+    case 'voz_cambiar':VS.alt=(VS.alt+1)%Math.max(1,voicesEs().length);break;
+    case 'volumen_alto':VS.vol=1;break;
+    case 'volumen_bajo':VS.vol=.45;break;
+  }
+  saveVS();
 }
 const sid=Math.random().toString(36).slice(2);
 async function turn(text){
   const a=Brain.reply(text,{vision:Vision.summary()});
+  if(a.action)applyAction(a.action);
   fetch('/api/log',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,
     body:JSON.stringify({session:sid,user_text:text,intent:a.tag,confidence:a.conf,reply:a.text,emotion:a.emotion,vision:Vision.snapshot(),model_version:Brain.version})}).catch(()=>{});
   await new Promise(r=>setTimeout(r,300+Math.random()*400));   // pausa natural antes de contestar
   await speak(a.text,a.emotion);
 }
-let busy=false;
-$('talk').onclick=()=>{
-  if(!SR){status.textContent='Usa Chrome o Edge para el micrófono';return}
-  if(busy)return;busy=true;
-  const rec=new SR();rec.lang='es-MX';
-  setEmotion('listening');status.textContent='Te escucho...';
-  rec.onresult=async e=>{
-    const t=e.results[0][0].transcript;status.textContent='';setEmotion('thinking');
-    try{await turn(t)}catch(err){console.error(err);await speak('Se me enredó el cerebro, intenta otra vez.','sad')}
-    await new Promise(r=>setTimeout(r,3500));setEmotion('happy');status.textContent='';busy=false;
-  };
-  rec.onerror=()=>{setEmotion('sad');status.textContent='No te oí, intenta otra vez';busy=false};
-  rec.onend=()=>{if(emo==='listening'){setEmotion('neutral');status.textContent='';busy=false}};
-  rec.start();
-};
-// elige la voz española más natural disponible (preferir femeninas neuronales/en línea, es-MX)
-let VOICE=null;
-function pickVoice(){
-  if(VOICE)return VOICE;
-  const vs=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang));if(!vs.length)return null;
-  const score=v=>(/natural|neural|online/i.test(v.name)?50:0)+(/google/i.test(v.name)?35:0)+(/dalia|paulina|sabina|elvira|helena|lucia|laura|monica|mónica|female|mujer|sonia|salome|salomé|valentina|camila|elena/i.test(v.name)?30:0)+(/es-MX/i.test(v.lang)?12:/es-US|es-419/i.test(v.lang)?8:/es-ES/i.test(v.lang)?4:0)+(/jorge|diego|pablo|raul|raúl|male|hombre|alvaro|álvaro|enrique/i.test(v.name)?-40:0)+(v.localService?0:5);
-  VOICE=vs.sort((a,b)=>score(b)-score(a))[0];return VOICE;
+
+// ---- escucha manos libres: Blu te oye todo el tiempo, sin tocar nada ----
+let wantListen=false,rec=null,busyTurn=false;
+function setBtn(){$('talk').textContent=wantListen?'Pausar':'Escuchar'}
+function stopListening(temp){
+  if(!temp){wantListen=false;setBtn();try{localStorage.removeItem('blu_auto')}catch{}}
+  if(rec){try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.abort()}catch{}rec=null}
 }
-speechSynthesis.onvoiceschanged=()=>{VOICE=null;pickVoice()};
+function listenOnce(){
+  if(!wantListen||talking||busyTurn||rec)return;
+  const r=new SR();rec=r;r.lang='es-MX';r.interimResults=false;r.maxAlternatives=1;r.continuous=false;
+  r.onstart=()=>{if(!busyTurn&&!talking){setEmotion('listening');status.textContent='Te escucho...'}};
+  r.onresult=async e=>{const t=(e.results[0][0].transcript||'').trim();rec=null;if(t)await handle(t)};
+  r.onerror=e=>{rec=null;if(e.error==='not-allowed'||e.error==='service-not-allowed'){wantListen=false;setBtn();status.textContent='Necesito permiso para usar el micrófono'}};
+  r.onend=()=>{if(rec===r)rec=null;if(wantListen&&!talking&&!busyTurn)setTimeout(listenOnce,250)};
+  try{r.start()}catch{rec=null;setTimeout(listenOnce,700)}
+}
+async function handle(t){
+  busyTurn=true;status.textContent='';setEmotion('thinking');
+  try{await turn(t)}catch(err){console.error(err);await speak('Se me enredó el cerebro, intenta otra vez.','sad')}
+  await new Promise(r=>setTimeout(r,1500));                      // se queda con la emoción un momento
+  busyTurn=false;setEmotion(wantListen?'listening':'happy');status.textContent=wantListen?'Te escucho...':'';
+  listenOnce();
+}
+async function startListening(fromUser){
+  if(!SR){status.textContent='Usa Chrome o Edge para que pueda escucharte';return}
+  wantListen=true;setBtn();try{localStorage.setItem('blu_auto','1')}catch{}
+  if(fromUser){const n=Brain.memory.facts.name;busyTurn=true;await speak(`Hola${n?' '+n:''}, ya te escucho.`,'happy');busyTurn=false}
+  setEmotion('listening');listenOnce();
+}
+$('talk').onclick=()=>{if(wantListen){stopListening(false);setEmotion('happy');status.textContent='Pausado. Toca Escuchar para seguir.'}else startListening(true)};
+addEventListener('visibilitychange',()=>{if(!document.hidden&&wantListen)listenOnce()});
+function autoStart(){                                           // si ya la usabas, vuelve a escuchar sola
+  let auto=false;try{auto=localStorage.getItem('blu_auto')==='1'}catch{}
+  if(!auto||!SR)return;
+  if(navigator.userActivation&&!navigator.userActivation.hasBeenActive){
+    status.textContent='Toca la pantalla para que empiece a escucharte';
+    addEventListener('pointerdown',()=>startListening(false),{once:true});
+  }else startListening(false);
+}
 // ================= Arranque =================
-$('talk').disabled=true;status.textContent='Despertando mi cerebro...';
-Brain.load().then(()=>{$('talk').disabled=false;status.textContent='Toca el botón para hablar conmigo'})
+$('talk').disabled=true;$('talk').textContent='Escuchar';status.textContent='Despertando mi cerebro...';
+Brain.load().then(()=>{$('talk').disabled=false;status.textContent='Toca el botón y háblame, yo te escucho.';autoStart()})
   .catch(()=>{status.textContent='No pude cargar mi cerebro. Revisa tu internet.'});
 Vision.start(cam);
 
@@ -359,10 +414,10 @@ async function checkVersion(v){
   if(!VER){VER=v;return}
   if(v.version===VER.version)return;
   const appChanged=v.app!==VER.app;VER=v;
-  if(appChanged){if(busy||speaking)pendingReload=true;else reloadApp()}      // código nuevo: recarga
+  if(appChanged){if(busyTurn||talking)pendingReload=true;else reloadApp()}      // código nuevo: recarga
   else Brain.load().catch(()=>{});                                             // solo cerebro nuevo: se cambia en caliente
 }
-setInterval(()=>{if(pendingReload&&!busy&&!speaking)reloadApp()},1500);
+setInterval(()=>{if(pendingReload&&!busyTurn&&!talking)reloadApp()},1500);
 try{const es=new EventSource('/api/events');es.addEventListener('version',e=>checkVersion(JSON.parse(e.data)))}catch{}
 addEventListener('visibilitychange',()=>{if(!document.hidden)checkVersion()});
 setInterval(checkVersion,60000);checkVersion();

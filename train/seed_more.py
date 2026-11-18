@@ -256,13 +256,18 @@ def _norm(s):
     s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
     return re.sub(r'\s+', ' ', re.sub(r'[^a-z0-9 ]+', ' ', s)).strip()
 
-seen = {}
-for tag, d in I.items():
-    out, mine = [], set()
-    for u in d['users']:
-        k = _norm(u)
-        if not k or k in mine or (k in seen and seen[k] != tag):
-            continue
-        seen[k] = tag; mine.add(k); out.append(u)
-    d['users'] = out
-    d['replies'] = list(dict.fromkeys(d['replies']))
+
+def finalize():
+    seen = {}
+    for tag, d in I.items():
+        out, mine = [], set()
+        for u in d['users']:
+            k = _norm(u)
+            if not k or k in mine or (k in seen and seen[k] != tag):
+                continue
+            seen[k] = tag; mine.add(k); out.append(u)
+        d['users'] = out
+        d['replies'] = list(dict.fromkeys(d['replies']))
+
+
+finalize()
