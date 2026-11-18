@@ -6,3 +6,4 @@ __pycache__/
 .exp_*.log
 public/version.json
 public/model/
+/version.json
