@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 git pull --ff-only
-(cd server && npm install --omit=dev --no-audit --no-fund --silent)
+(cd server && npm install --omit=dev --no-audit --no-fund --silent && chmod -R go+rX .)
 if [ -d train/.venv ]; then train/.venv/bin/pip install -q -r train/requirements.txt; fi
 python3 - <<'PY'
 import json, subprocess, time, os
