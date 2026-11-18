@@ -348,3 +348,5 @@ EMOTIONS = ['neutral', 'happy', 'sad', 'surprised', 'thinking', 'love', 'angry',
 import seed_more  # noqa: E402,F401  (agrega más datos)
 
 import seed_more2  # noqa: E402,F401
+
+import seed_more3  # noqa: E402,F401
