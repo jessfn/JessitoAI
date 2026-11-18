@@ -344,3 +344,5 @@ add('no_entiendo', 'thinking',
      'Eso es nuevo para mí. Cuéntame más para aprender.'])
 
 EMOTIONS = ['neutral', 'happy', 'sad', 'surprised', 'thinking', 'love', 'angry', 'listening', 'sleepy']
+
+import seed_more  # noqa: E402,F401  (agrega más datos)

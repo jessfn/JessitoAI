@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # Despliegue de Blu en el VPS:  cd /var/www/jessito && ./deploy.sh
+# Uso: ./deploy.sh [--train]
 # git pull -> dependencias -> versión nueva -> reinicio de la API.  Las apps abiertas se actualizan solas (SSE).
 set -euo pipefail
 cd "$(dirname "$0")"
 git pull --ff-only
 (cd server && npm install --omit=dev --no-audit --no-fund --silent && chmod -R go+rX .)
 if [ -d train/.venv ]; then train/.venv/bin/pip install -q -r train/requirements.txt; fi
+# datos semilla -> PostgreSQL (idempotente) y, con --train, re-entrena la red neuronal
+if [ -f /etc/jessito.env ] && [ -d train/.venv ]; then
+  set -a; . /etc/jessito.env; set +a
+  train/.venv/bin/python train/seed.py
+  if [ "${1:-}" = "--train" ]; then (cd train && .venv/bin/python brain.py); fi
+fi
 python3 - <<'PY'
 import json, subprocess, time, os
 p = 'public/version.json'

@@ -62,8 +62,17 @@ def typo(t, rng):
         return t[:i] + t[i + 1] + t[i] + t[i + 2:]  if i + 2 <= len(t) else t  # letras cambiadas
     return t[:i] + t[i] + t[i:]                     # letra repetida
 
+SYN = {'muy': ['super', 'bien', 'demasiado', 'tan'], 'super': ['muy', 'bien'], 'estoy': ['ando', 'me siento', 'hoy estoy'], 'ando': ['estoy'],
+       'quiero': ['necesito', 'me gustaria', 'tengo ganas de'], 'dime': ['cuentame', 'platicame'], 'cuentame': ['dime', 'platicame'],
+       'hola': ['hey', 'buenas', 'que onda'], 'gracias': ['muchas gracias', 'mil gracias'], 'amigo': ['blu', 'compa'], 'mucho': ['bastante', 'un monton'],
+       'tengo': ['siento', 'ando con'], 'puedes': ['podrias', 'sabes'], 'eres': ['estas', 'te ves'], 'adios': ['chao', 'bye'], 'bonito': ['lindo', 'chulo'],
+       'lindo': ['bonito', 'tierno'], 'por favor': ['porfa', 'si puedes'], 'ahorita': ['ahora', 'en este momento'], 'hoy': ['el dia de hoy', 'ahorita']}
+
 def augment(t, rng):
     w = t.split()
+    for i, x in enumerate(w):
+        if x.lower() in SYN and rng.random() < .25:
+            w[i] = rng.choice(SYN[x.lower()])
     if len(w) > 3 and rng.random() < .2:
         del w[rng.randrange(len(w))]
     t = ' '.join(w)
@@ -91,9 +100,13 @@ def load_data():
         cur.execute("SELECT id,tag,emotion FROM intents ORDER BY id")
         intents = [dict(id=r[0], tag=r[1], emotion=r[2], users=[], replies=[]) for r in cur.fetchall()]
         by = {x['id']: x for x in intents}
-        cur.execute("SELECT intent_id,text FROM utterances")
+        # lo que enseña una persona (source=user) tiene prioridad; ninguna frase puede estar en dos intenciones
+        cur.execute("SELECT intent_id,text FROM utterances ORDER BY (source='user') DESC, id")
+        seen = set()
         for iid, t in cur.fetchall():
-            by[iid]['users'].append(t)
+            k = norm(t)
+            if k and k not in seen:
+                seen.add(k); by[iid]['users'].append(t)
         cur.execute("SELECT intent_id,text,emotion FROM responses")
         for iid, t, e in cur.fetchall():
             by[iid]['replies'].append((t, e))
