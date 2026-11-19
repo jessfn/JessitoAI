@@ -219,8 +219,10 @@ for(const sd of[-1,1]){
   eyeRigs.push({g,ball,pupil,up,lo,sd});
 }
 // cejas
-const brows=[];
-for(const s of[-1,1]){const b=mesh(new T.BoxGeometry(.28,.045,.03),neon(0x7fd4ff),[s*.38,.48,1.06]);b.visible=false;brows.push(b)}
+const brows=[],browMat=new T.MeshBasicMaterial({color:0x7fd4ff});
+function capsule3(len,r,mat){const g=new T.Group(),c=new T.Mesh(new T.CylinderGeometry(r,r,len,12),mat);c.rotation.z=Math.PI/2;g.add(c);for(const k of[-1,1]){const b=new T.Mesh(sph(r,12,8),mat);b.position.x=k*len/2;g.add(b)}return g}
+eyeRigs.forEach(r=>{const arc=new T.Mesh(new T.TorusGeometry(ER*.8,.03,8,28,Math.PI),browMat);arc.rotation.z=Math.PI;arc.position.set(0,.05,.13);arc.visible=false;r.g.add(arc);r.arc=arc});   // ojo cerrado: arco luminoso
+for(const sd of[-1,1]){const g=new T.Group();g.position.set(sd*.43,.6,.915);g.rotation.set(-.7,0,0);g.add(capsule3(.3,.024,browMat));head.add(g);brows.push({g,s:sd,y:.6,rot:0})}
 // mejillas (rubor suave)
 const cheeks=[];
 for(const s of[-1,1]){const c=new T.Mesh(new T.PlaneGeometry(.38,.24),new T.MeshBasicMaterial({map:softTex(255,120,170),transparent:true,opacity:.75,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));
@@ -236,12 +238,17 @@ const halos=new T.InstancedMesh(new T.CircleGeometry(.05,16),new T.MeshBasicMate
 mouthG.add(dots,halos);
 const ledB=new Float32Array(NLED);
 const OFFC=new T.Color(0x0b2044),ONC=new T.Color(0x8fe0ff),TMP=new T.Color();
+const HEART=['..##...##..','.####.####.','###########','###########','.#########.','..#######..','...#####...','....###....','.....#.....'];
+const HEART_S=['.##.##.','#######','#######','.#####.','..###..','...#...'];
 function ledPattern(t){
   const on=new Uint8Array(NLED);const set=(c,r)=>{if(c>=0&&c<COLS&&r>=0&&r<ROWS)on[r*COLS+c]=1};
   const m=target.m||0;
-  if(speaking){for(let c=0;c<COLS;c++){const u=(c-MC)/MC,cen=MR+Math.round((u*u-.4)*m*8),h=Math.round((.15+Math.abs(Math.sin(t*12+c*1.3))*.85)*(1-.3*Math.abs(u))*3.2);for(let r=cen-h;r<=cen+h;r++)set(c,r)}}
-  else if(emo==='surprised'){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const d=Math.hypot((c-MC)/3.2,(r-MR)/3.6);if(d>.62&&d<1.1)set(c,r)}}
-  else if(emo==='love'){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const x=(c-MC)/5.4,y=(r-MR)/3.6+.15;if(Math.pow(x*x+y*y-1,3)-x*x*y*y*y<=0)set(c,r)}}
+  if(emo==='love'){                                     // corazón de píxeles que late (más rápido al hablar)
+    const small=Math.sin(t*(speaking?10:3.4))>.6,bm=small?HEART_S:HEART,h=bm.length,w=bm[0].length;
+    for(let i=0;i<h;i++)for(let j=0;j<w;j++)if(bm[i][j]==='#')set(MC-((w-1)>>1)+j,(small?6:8)-i);
+  }
+  else if(speaking){for(let c=0;c<COLS;c++){const u=(c-MC)/MC,cen=MR+Math.round((u*u-.4)*m*8),h=Math.round((.15+Math.abs(Math.sin(t*12+c*1.3))*.85)*(1-.3*Math.abs(u))*3.2);for(let r=cen-h;r<=cen+h;r++)set(c,r)}}
+  else if(emo==='surprised'){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const d=Math.hypot((c-MC)/4.4,(r-MR)/3.9);if(d>.7&&d<1.12)set(c,r)}}
   else if(emo==='happy'){for(let c=1;c<COLS-1;c++){const u=(c-MC)/MC,r=Math.round(MR-1.5+4*u*u);set(c,r);set(c,r-1)}}
   else if(emo==='sad'){for(let c=1;c<COLS-1;c++){const u=(c-MC)/MC,r=Math.round(MR+1.5-4*u*u);set(c,r);set(c,r+1)}}
   else if(emo==='angry'){for(let c=1;c<COLS-1;c++){const r=MR+((Math.floor(c/2)%2)?1:-1);set(c,r);set(c,MR)}}
@@ -273,21 +280,23 @@ scene.traverse(o=>{if(o.isMesh&&!o.material.transparent)o.castShadow=true});
  var motes=new T.Points(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(q,3)),new T.PointsMaterial({map:softTex(150,210,255),size:.2,transparent:true,opacity:.6,depthWrite:false,blending:T.AdditiveBlending}));scene.add(motes)}
 
 // ================= Emociones =================
+// lid/low: párpado superior/inferior · tilt: inclinación del párpado · pup: pupila · es: tamaño del ojo
+// b / b2: ceja [altura, inclinación] (inclinación + = punta interior baja) · m: curva de la boca · c: color de luces
 const E={
- neutral:{lid:.9,low:.1,tilt:0,pup:1,m:.08,c:0x7fd4ff},
- happy:{lid:.65,low:.85,tilt:0,pup:1.15,m:.24,c:0xffe08a},
- sad:{lid:.5,low:.05,tilt:.5,pup:1.2,m:-.14,c:0x6f95ff},
- surprised:{lid:1.15,low:0,tilt:0,pup:.55,o:1,c:0xffffff},
- thinking:{lid:.75,low:.25,tilt:-.1,pup:.9,m:-.02,c:0xc3a6ff},
- love:{lid:.85,low:.35,tilt:0,pup:1.7,m:.24,c:0xff7aa8},
- angry:{lid:.48,low:.25,tilt:-.8,pup:.8,m:-.1,c:0xff5a5a},
- listening:{lid:1,low:.05,tilt:0,pup:1.2,m:.05,c:0x7fd4ff},
- sleepy:{lid:.1,low:.3,tilt:0,pup:1,m:.04,c:0x5a7fc0}};
+ neutral:{lid:.9,low:.1,tilt:0,pup:1,es:1,b:[0,0],m:.08,c:0x7fd4ff},
+ happy:{lid:.55,low:1.0,tilt:0,pup:1.15,es:1,b:[.05,-.12],m:.24,c:0xffe08a},
+ sad:{lid:.34,low:.05,tilt:.75,pup:1.25,es:.97,b:[.02,-.6],m:-.14,c:0x6f95ff},
+ surprised:{lid:1.25,low:0,tilt:0,pup:.5,es:1.18,b:[.12,-.04],o:1,c:0xffffff},
+ thinking:{lid:.7,low:.25,tilt:-.1,pup:.9,es:1,b:[.1,-.25],b2:[-.01,.3],m:-.02,c:0xc3a6ff},
+ love:{lid:.8,low:.45,tilt:0,pup:1.75,es:1.05,b:[.06,-.25],m:.24,c:0xff7aa8},
+ angry:{lid:.3,low:.3,tilt:-.95,pup:.75,es:.96,b:[-.03,.62],m:-.1,c:0xff5a5a},
+ listening:{lid:1,low:.05,tilt:0,pup:1.2,es:1.04,b:[.06,0],m:.05,c:0x7fd4ff},
+ sleepy:{lid:.1,low:.35,tilt:0,pup:1,es:.97,b:[-.05,-.1],m:.04,c:0x5a7fc0}};
 const LABEL={neutral:'Tranquilo',happy:'Feliz',sad:'Triste',surprised:'Sorprendido',thinking:'Pensando',love:'Enamorado',angry:'Enojado',listening:'Te escucho',sleepy:'Con sueño'};
 let emo='neutral',target=E.neutral,speaking=false;
 function setEmotion(e){
   if(!E[e])e='neutral';emo=e;target=E[e];
-  brows.forEach((b,i)=>{b.visible=target.brow!==undefined;if(b.visible)b.rotation.z=(i?-1:1)*target.brow});
+  browMat.color.set(target.c);
   tear.visible=e==='sad';heart.visible=e==='love';quest.visible=e==='thinking';zzz.visible=e==='sleepy';
   cheeks.forEach(c=>c.material.opacity=(e==='happy'||e==='love')?1:.55);
   earGlows.forEach(g=>g.material.color.set(target.c));
@@ -307,11 +316,16 @@ const clock=new T.Clock();let nextBlink=2,blink=0;
   bulb.material.color.setHSL(.12,1,.62+.12*Math.sin(t*4));halo.material.opacity=.6+.25*Math.sin(t*4);
   if(t>nextBlink){blink=1;nextBlink=t+2+Math.random()*3}
   blink=Math.max(0,blink-.12);const bl=blink>0?Math.abs(Math.sin(blink*Math.PI)):0;
+  brows.forEach(b=>{const t2=b.s>0&&target.b2?target.b2:target.b,dy=t2[0],rt=t2[1];b.y+=(.6+dy-b.y)*.2;b.rot+=(rt-b.rot)*.2;b.g.position.y=b.y;b.g.rotation.z=b.s*b.rot});
   eyeRigs.forEach(e=>{
+    const sc=target.es||1;e.g.scale.x+=(sc-e.g.scale.x)*.2;e.g.scale.y+=(sc-e.g.scale.y)*.2;
     const open=Math.max(0,target.lid*(1-bl*.95));
-    e.up.rotation.x+=((.55-open*2.0)-e.up.rotation.x)*.35;
+    const closeX=Math.max(0,.3-open);                       // al cerrar (sueño o parpadeo) los párpados se cierran de verdad
+    e.up.rotation.x+=((.55-open*2.0+closeX*4.5)-e.up.rotation.x)*.4;
     e.up.rotation.z+=(e.sd*target.tilt-e.up.rotation.z)*.2;
-    e.lo.rotation.x+=((1.5-target.low*1.4)-e.lo.rotation.x)*.25;
+    e.lo.rotation.x+=((1.5-Math.min(1.05,target.low+closeX*2.2)*1.4)-e.lo.rotation.x)*.35;
+    const closed=closeX>.15;                                  // dormido o parpadeando: se ve un arco de luz
+    e.g.children.forEach(ch=>{if(ch!==e.arc&&ch.type!=='Sprite')ch.visible=!closed});e.arc.visible=closed;
     e.ball.rotation.y+=((gx*.45-head.rotation.y*.5)-e.ball.rotation.y)*.12;
     e.ball.rotation.x+=((gy*.3)-e.ball.rotation.x)*.12;
     const ps=target.pup;e.pupil.scale.x+=(ps-e.pupil.scale.x)*.15;e.pupil.scale.y=e.pupil.scale.x;
@@ -403,7 +417,10 @@ async function speak(text,emotion){
     if(c&&c.state==='suspended')await Promise.race([c.resume().catch(()=>{}),sleep(400)]);
     if(c&&c.state==='running'&&Date.now()>ttsOffUntil&&parts.length){
       try{
-        let cur=ttsGet(parts[0],emotion);
+        let cur=ttsGet(parts[0],emotion);cur.catch(()=>{});
+        // si la primera frase tarda en generarse, una muletilla ya guardada ("Mmm.") evita el silencio
+        const quick=await Promise.race([cur.then(()=>true,()=>true),sleep(1100).then(()=>false)]);
+        if(!quick){try{const fb=await Promise.race([ttsGet(['Mmm.','A ver.','Déjame pensar.'][(Math.random()*3)|0],'thinking'),sleep(700).then(()=>null)]);if(fb&&gen===speakGen)await playBuf(fb)}catch{}}
         for(;i<parts.length;i++){
           const buf=await cur;
           cur=i+1<parts.length?ttsGet(parts[i+1],emotion):null;     // ya va generando la siguiente frase
@@ -464,7 +481,6 @@ async function turn(text){
   if(a.action)applyAction(a.action);
   fetch('/api/log',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,
     body:JSON.stringify({session:sid,user_text:text,intent:a.tag,confidence:a.conf,reply:a.text,emotion:a.emotion,vision:Vision.snapshot(),model_version:Brain.version+(a.gen?'+gen':'')})}).catch(()=>{});
-  await new Promise(r=>setTimeout(r,300+Math.random()*400));   // pausa natural antes de contestar
   await speak(a.text,a.emotion);
 }
 
@@ -487,7 +503,7 @@ function listenOnce(){
 async function handle(t){
   busyTurn=true;status.textContent='';setEmotion('thinking');
   try{await turn(t)}catch(err){console.error(err);await speak('Se me enredó el cerebro, intenta otra vez.','sad')}
-  await new Promise(r=>setTimeout(r,1500));                      // se queda con la emoción un momento
+  await new Promise(r=>setTimeout(r,600));                       // se queda con la emoción un momento
   busyTurn=false;setEmotion(wantListen?'listening':'happy');status.textContent=wantListen?'Te escucho...':'';
   listenOnce();
 }
