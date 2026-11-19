@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#0b1530">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Blu">
+<meta name="apple-mobile-web-app-title" content="Jessito">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<title>Blu</title>
+<title>Jessito</title>
 <style>
 html,body{margin:0;height:100%;background:radial-gradient(ellipse at 50% 45%,#12295a,#070c1f 60%,#03050f);font-family:system-ui,sans-serif;color:#cfe6ff;overflow:hidden}
 canvas{position:fixed;inset:0;width:100%;height:100%}
@@ -22,10 +22,33 @@ button:active{transform:translateY(4px);box-shadow:0 0 28px #3a8dff88,0 2px 0 #1
 @media (max-height:420px){#status{display:none}}
 button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 video{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
-</style>
+#vbtn{position:fixed;top:calc(12px + env(safe-area-inset-top));right:12px;padding:8px 18px;font-size:15px;background:#ffffff22;box-shadow:none;z-index:5}
+#vpanel{position:fixed;inset:0;background:#030814f0;z-index:10;overflow:auto;padding:22px 16px calc(28px + env(safe-area-inset-bottom));display:none}
+#vpanel.open{display:block}
+#vpanel .box{max-width:560px;margin:0 auto}
+#vpanel h2{margin:0 0 4px;font-size:22px}#vpanel h3{margin:18px 0 8px;font-size:14px;color:#8aa6d6;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+#vpanel p{margin:0 0 6px;color:#8aa6d6;font-size:14px}
+.small{padding:7px 15px;font-size:14px;box-shadow:none;background:#2f6fd0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:9px 16px;font-size:15px;background:#12244f;box-shadow:none;border:1px solid #1f3470}
+.chip.sel{background:#2f86ff;border-color:#7fd4ff}
+.vitem{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid #1f3470;border-radius:12px;margin:6px 0;background:#0b1530;text-align:left}
+.vitem.sel{border-color:#3a8dff;box-shadow:0 0 14px #3a8dff66}.vitem b{display:block;font-size:15px}.vitem span{font-size:12px;color:#8aa6d6}
+.vitem div:last-child{display:flex;gap:6px}
+#vpanel label{display:block;margin:10px 0 2px;font-size:14px}#vpanel input[type=range]{width:100%}
+
 </head>
 <body>
 <video id="cam" autoplay playsinline muted></video>
+<button id="vbtn">Voz</button>
+<div id="vpanel"><div class="box">
+  <h2>Elige mi voz</h2><p>Toca una opción para escucharla y quedarte con la que más te guste.</p>
+  <h3>Estilos</h3><div class="chips" id="presets"></div>
+  <h3>Ajustes</h3>
+  <label>Velocidad <span id="rv"></span></label><input type="range" id="rate" min="70" max="150" step="2">
+  <label>Tono <span id="pv"></span></label><input type="range" id="pitch" min="70" max="150" step="2">
+  <h3>Voces de este dispositivo</h3><div id="voices"></div><p id="vhint"></p>
+  <div style="margin-top:18px;display:flex;gap:8px"><button class="small" id="vtest">Escuchar ahora</button><button class="small" id="vclose" style="background:#1b2c5e">Listo</button></div>
+</div></div>
 <div id="ui"><div id="status">Toca el botón para hablar conmigo</div><button id="talk">Hablar</button></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="brain.js"></script>
@@ -302,26 +325,39 @@ const clock=new T.Clock();let nextBlink=2,blink=0;
 
 // ================= Voz =================
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-const VS=(()=>{const v={rate:1,pitch:1,vol:1,alt:0};try{Object.assign(v,JSON.parse(localStorage.getItem('blu_voice')||'{}'))}catch{}return v})();
-const saveVS=()=>{try{localStorage.setItem('blu_voice',JSON.stringify(VS))}catch{}};
 // ritmo y tono según la emoción: [velocidad, tono]
 const PROS={happy:[1.03,1.08],sad:[.88,.9],surprised:[1.08,1.15],thinking:[.92,1],love:[.92,1.06],angry:[1.05,.95],listening:[.98,1],sleepy:[.8,.92],neutral:[1,1]};
+// estilos de voz de joven (hombre) y otros; la voz real depende de las voces instaladas en el navegador
+const PRESETS=[
+  {id:'joven',name:'Joven moderno',rate:1.08,pitch:1.1,male:true},
+  {id:'calido',name:'Cálido y cercano',rate:1.0,pitch:.98,male:true},
+  {id:'energico',name:'Energético',rate:1.17,pitch:1.18,male:true},
+  {id:'tranquilo',name:'Tranquilo y suave',rate:.93,pitch:.95,male:true},
+  {id:'dulce',name:'Dulce (voz femenina)',rate:1.0,pitch:1.1,male:false}];
+const VS=(()=>{const v={rate:1.08,pitch:1.1,vol:1,voice:'',male:true,preset:'joven'};try{Object.assign(v,JSON.parse(localStorage.getItem('blu_voice2')||'{}'))}catch{}return v})();
+const saveVS=()=>{try{localStorage.setItem('blu_voice2',JSON.stringify(VS))}catch{}};
+const MALE=/jorge|raul|raúl|diego|pablo|alvaro|álvaro|alejandro|enrique|gonzalo|pelayo|santiago|miguel|carlos|juan|jesus|jesús|lorenzo|rodrigo|andres|andrés|sergio|tomas|tomás|mateo|male|hombre|masculin/i;
+const FEMALE=/sabina|dalia|paulina|helena|lucia|lucía|laura|monica|mónica|elvira|elena|sonia|salome|salomé|valentina|camila|maria|maría|marisol|ximena|female|mujer|femenin|google/i;
+const gender=v=>MALE.test(v.name)?'m':FEMALE.test(v.name)?'f':'?';
+const isNat=v=>/natural|neural|online/i.test(v.name);
 let VOICES=null,talking=false,speakGen=0;
 function voicesEs(){
   if(VOICES)return VOICES;
   const vs=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang));if(!vs.length)return[];
-  const score=v=>(/natural|neural|online/i.test(v.name)?50:0)+(/google/i.test(v.name)?35:0)+(/dalia|paulina|sabina|elvira|helena|lucia|laura|monica|mónica|female|mujer|sonia|salome|salomé|valentina|camila|elena/i.test(v.name)?30:0)+(/es-MX/i.test(v.lang)?12:/es-US|es-419/i.test(v.lang)?8:/es-ES/i.test(v.lang)?4:0)+(/jorge|diego|pablo|raul|raúl|male|hombre|alvaro|álvaro|enrique/i.test(v.name)?-40:0)+(v.localService?0:5);
+  const g=VS.male?'m':'f';
+  const score=v=>(isNat(v)?50:0)+(gender(v)===g?40:gender(v)==='?'?0:-40)+(/es-MX/i.test(v.lang)?12:/es-US|es-419/i.test(v.lang)?8:/es-ES/i.test(v.lang)?4:0)+(v.localService?0:5);
   return VOICES=vs.sort((a,b)=>score(b)-score(a));
 }
-const pickVoice=(alt=0)=>{const l=voicesEs();return l.length?l[alt%l.length]:null};
-speechSynthesis.onvoiceschanged=()=>{VOICES=null};
+function pickVoice(){const l=voicesEs();if(!l.length)return null;return (VS.voice&&l.find(v=>v.name===VS.voice))||l[0]}
+speechSynthesis.onvoiceschanged=()=>{VOICES=null;if($('vpanel').classList.contains('open'))renderVoices()};
 function speak(text,emotion){
   return new Promise(res=>{
     setEmotion(emotion);status.textContent=LABEL[emotion]||'';
     stopListening(true);                                   // no escucharse a sí mismo
-    const clean=text.replace(/[\p{Extended_Pictographic}️‍*_#~`]/gu,'').replace(/\s+/g,' ').trim();
+    // "Jessito" se escribe con jota pero se pronuncia "Yessito"
+    const clean=text.replace(/[\p{Extended_Pictographic}️‍*_#~`]/gu,'').replace(/\bjessito\b/gi,'Yessito').replace(/\s+/g,' ').trim();
     const parts=(clean.match(/[^.!?¿¡]+[.!?]*|[.!?]+/g)||[clean]).map(x=>x.trim()).filter(Boolean);
-    const v=pickVoice(VS.alt),[pr,pp]=PROS[emotion]||PROS.neutral,gen=++speakGen,natural=v&&/natural|online|neural|google/i.test(v.name);
+    const v=pickVoice(),[pr,pp]=PROS[emotion]||PROS.neutral,gen=++speakGen,nat=v&&isNat(v);
     let i=0;talking=true;speaking=true;
     const done=()=>{talking=false;speaking=false;res()};
     const next=()=>{
@@ -329,28 +365,55 @@ function speak(text,emotion){
       if(i>=parts.length)return done();
       const q=parts[i++],u=new SpeechSynthesisUtterance(q);
       if(v){u.voice=v;u.lang=v.lang}else u.lang='es-MX';
-      u.rate=Math.min(1.6,Math.max(.5,(natural?.97:.93)*pr*VS.rate));
-      u.pitch=Math.min(2,Math.max(.3,(natural?1.05:1.22)*pp*VS.pitch*(/\?$/.test(q)?1.04:1)));
+      u.rate=Math.min(1.6,Math.max(.5,(nat?1:.96)*pr*VS.rate));
+      u.pitch=Math.min(2,Math.max(.3,(nat?1:1.04)*pp*VS.pitch*(/\?$/.test(q)?1.04:1)));
       u.volume=VS.vol;
-      u.onend=u.onerror=()=>{setTimeout(next,/[.!?]$/.test(q)?230:90)};   // pausa natural entre frases
+      u.onend=u.onerror=()=>{setTimeout(next,/[.!?]$/.test(q)?200:80)};   // pausa natural entre frases
       speechSynthesis.speak(u);
     };
     speechSynthesis.cancel();setTimeout(next,60);
   });
 }
-function applyAction(a){                                    // "habla más despacio", "otra voz", etc.
+function applyAction(a){                                    // "habla más despacio", "voz de hombre", etc.
   switch(a){
-    case 'voz_lento':VS.rate=Math.max(.6,VS.rate-.15);break;
-    case 'voz_rapido':VS.rate=Math.min(1.5,VS.rate+.15);break;
-    case 'voz_aguda':VS.pitch=Math.min(1.6,VS.pitch+.15);break;
-    case 'voz_grave':VS.pitch=Math.max(.6,VS.pitch-.15);break;
-    case 'voz_normal':VS.rate=1;VS.pitch=1;VS.vol=1;VS.alt=0;break;
-    case 'voz_cambiar':VS.alt=(VS.alt+1)%Math.max(1,voicesEs().length);break;
+    case 'voz_lento':VS.rate=Math.max(.6,VS.rate-.12);break;
+    case 'voz_rapido':VS.rate=Math.min(1.5,VS.rate+.12);break;
+    case 'voz_aguda':VS.pitch=Math.min(1.5,VS.pitch+.12);break;
+    case 'voz_grave':VS.pitch=Math.max(.6,VS.pitch-.12);break;
+    case 'voz_normal':Object.assign(VS,{rate:1.08,pitch:1.1,vol:1,voice:'',male:true,preset:'joven'});break;
+    case 'voz_hombre':VS.male=true;VS.voice='';VOICES=null;break;
+    case 'voz_mujer':VS.male=false;VS.voice='';VOICES=null;break;
+    case 'voz_cambiar':{const l=voicesEs();if(l.length){const k=l.findIndex(v=>v.name===(pickVoice()||{}).name);VS.voice=l[(k+1)%l.length].name}break}
     case 'volumen_alto':VS.vol=1;break;
     case 'volumen_bajo':VS.vol=.45;break;
   }
-  saveVS();
+  VS.preset='';saveVS();
 }
+// ---- panel para elegir la voz ----
+function renderVoices(){
+  const l=voicesEs(),cur=pickVoice(),box=$('voices');box.innerHTML='';
+  l.forEach(v=>{
+    const d=document.createElement('div');d.className='vitem'+(cur&&v.name===cur.name?' sel':'');
+    const gl={m:'masculina',f:'femenina','?':'sin identificar'}[gender(v)];
+    d.innerHTML=`<div><b>${v.name.replace(/Microsoft |Google /,'')}</b><span>${v.lang} · ${gl}${isNat(v)?' · natural':''}</span></div><div><button class="small">Probar</button><button class="small" style="background:#12244f">Usar</button></div>`;
+    const [bp,bu]=d.querySelectorAll('button');
+    bp.onclick=()=>{const old=VS.voice;VS.voice=v.name;speak('Hola, soy Yessito. ¿Te gusta cómo suena mi voz?','happy').then(()=>{VS.voice=old;saveVS()})};
+    bu.onclick=()=>{VS.voice=v.name;VS.preset='';saveVS();renderVoices()};
+    box.appendChild(d);
+  });
+  const hasM=l.some(v=>gender(v)==='m');
+  $('vhint').textContent=!l.length?'Este navegador no tiene voces en español.':hasM?'':'En este dispositivo solo hay voces femeninas o sin identificar. Abre Jessito en Microsoft Edge: ahí aparecen voces masculinas naturales como Jorge, Álvaro o Diego.';
+  $('presets').innerHTML='';
+  PRESETS.forEach(pz=>{const b=document.createElement('button');b.className='chip'+(VS.preset===pz.id?' sel':'');b.textContent=pz.name;
+    b.onclick=()=>{Object.assign(VS,{rate:pz.rate,pitch:pz.pitch,male:pz.male,voice:'',preset:pz.id});VOICES=null;saveVS();syncSliders();renderVoices();speak('Hola, soy Yessito. ¿Así te gusta mi voz?','happy')};
+    $('presets').appendChild(b)});
+}
+function syncSliders(){$('rate').value=Math.round(VS.rate*100);$('pitch').value=Math.round(VS.pitch*100);$('rv').textContent=Math.round(VS.rate*100)+'%';$('pv').textContent=Math.round(VS.pitch*100)+'%'}
+$('rate').oninput=()=>{VS.rate=$('rate').value/100;VS.preset='';$('rv').textContent=$('rate').value+'%';saveVS()};
+$('pitch').oninput=()=>{VS.pitch=$('pitch').value/100;VS.preset='';$('pv').textContent=$('pitch').value+'%';saveVS()};
+$('vbtn').onclick=()=>{VOICES=null;syncSliders();renderVoices();$('vpanel').classList.add('open')};
+$('vclose').onclick=()=>$('vpanel').classList.remove('open');
+$('vtest').onclick=()=>speak('Hola, soy Yessito. Estoy listo para platicar contigo.','happy');
 const sid=Math.random().toString(36).slice(2);
 async function turn(text){
   const a=Brain.reply(text,{vision:Vision.summary()});
@@ -361,7 +424,7 @@ async function turn(text){
   await speak(a.text,a.emotion);
 }
 
-// ---- escucha manos libres: Blu te oye todo el tiempo, sin tocar nada ----
+// ---- escucha manos libres: Jessito te oye todo el tiempo, sin tocar nada ----
 let wantListen=false,rec=null,busyTurn=false;
 function setBtn(){$('talk').textContent=wantListen?'Pausar':'Escuchar'}
 function stopListening(temp){

@@ -1,4 +1,4 @@
-// Service worker de Blu: red primero (siempre la versión más nueva) y copia local para uso sin internet.
+// Service worker de Jessito: red primero (siempre la versión más nueva) y copia local para uso sin internet.
 const CACHE = 'blu-cache';
 const CDN = ['cdnjs.cloudflare.com'];
 self.addEventListener('install', e => { self.skipWaiting(); });

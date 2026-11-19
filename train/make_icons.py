@@ -1,4 +1,4 @@
-"""Genera los iconos de la PWA (cabeza azul de Blu).  Uso: python make_icons.py"""
+"""Genera los iconos de la PWA (cabeza azul de Jessito).  Uso: python make_icons.py"""
 import os
 from PIL import Image, ImageDraw, ImageFilter
 

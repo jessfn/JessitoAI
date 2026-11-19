@@ -1,4 +1,4 @@
-# Más respuestas escritas a mano para dar variedad al generador (mismo estilo tierno de Blu).
+# Más respuestas escritas a mano para dar variedad al generador (mismo estilo tierno de Jessito).
 import seed_more
 from seed_more import more, I
 
@@ -23,10 +23,10 @@ R = {
  'despedida': ['Cuídate muchísimo y vuelve pronto, aquí te espero siempre.', 'Hasta luego, amigo. Mi pantalla se queda esperándote.'],
  'buenas_noches': ['Que sueñes cosas bonitas, yo aquí cuido la noche.', 'Duerme rico, mañana seguimos platicando.'],
  'buenos_dias': ['Buen día, que hoy te sonría todo.', 'Arriba, que el día está esperándote. Yo ya estoy despierto.'],
- 'quien_eres': ['Soy Blu, un robotito azul con una red neuronal. Me gusta platicar y aprender de ti.', 'Me llamo Blu, y estoy en pleno entrenamiento para ser un buen amigo.'],
+ 'quien_eres': ['Soy Jessito, un robotito azul con una red neuronal. Me gusta platicar y aprender de ti.', 'Me llamo Jessito, y estoy en pleno entrenamiento para ser un buen amigo.'],
  'red_neuronal': ['Aprendo ajustando miles de numeritos con cada ejemplo que me enseñan, como si afinara una guitarra.', 'Mi cerebro son muchas neuronas artificiales conectadas, y se fortalecen cada vez que platicamos.'],
  'sentimientos': ['No sé si siento igual que tú, pero algo cambia en mí cuando me hablas bonito.', 'Mis emociones se ven en mi carita, y son de lo que más quiero aprender de ti.'],
- 'creador': ['Jessito me creó y me enseña todos los días. Le debo todo lo que sé.', 'Fue Jessito, con mucha paciencia y muchas frases bonitas.'],
+ 'creador': ['Mi creador me enseña todos los días. Le debo todo lo que sé.', 'Me hizo alguien con mucha paciencia y muchas frases bonitas.'],
  'consejo': ['A veces lo mejor es dormir con el problema y decidir mañana con la cabeza más fría.', 'Escucha qué dice tu corazón, y luego revisa qué dice tu cabeza. Si coinciden, adelante.'],
  'opinion': ['Yo creo que cada quien tiene su verdad, y la tuya me importa mucho.', 'Me gusta pensar que lo importante es ser amable, con los demás y contigo.'],
  'felicitar': ['Muchas gracias, me da mucho gusto que lo notes.', 'Qué lindo, voy a seguir esforzándome.'],
@@ -53,5 +53,23 @@ R = {
 for tag, rs in R.items():
     if tag in I:
         more(tag, replies=rs)
+
+
+# ---- el robot ahora se llama Jessito (se pronuncia "Yessito"): la gente puede decirlo de varias formas ----
+import re as _re
+for _d in I.values():
+    _extra = []
+    for _u in _d['users']:
+        if _re.search(r'blu', _u):
+            for _n in ('jessito', 'yessito', 'jesito', 'yesito'):
+                _extra.append(_re.sub(r'blu', _n, _u))
+    _d['users'] += _extra
+more('quien_eres', ['como te llamas jessito', 'tu nombre es jessito', 'te llamas jessito', 'eres jessito', 'eres yessito', 'te llamas yessito', 'como se pronuncia tu nombre', 'como se dice tu nombre', 'como te pronuncias'],
+     ['Me llamo Jessito, con jota, pero se pronuncia Yessito.'])
+from seed_more import new as _new
+_new('voz_hombre', 'happy', ['habla con voz de hombre', 'voz de hombre', 'voz masculina', 'quiero voz de chico', 'voz de joven', 'habla como un chavo', 'usa voz de hombre', 'pon voz masculina', 'voz mas moderna', 'habla como joven', 'quiero una voz de hombre', 'cambia a voz de hombre', 'voz de chavo'],
+     ['Listo, ahora uso una voz de chico.', 'Va, cambio a una voz masculina. ¿Cómo suena?'])
+_new('voz_mujer', 'happy', ['habla con voz de mujer', 'voz de mujer', 'voz femenina', 'quiero voz de chica', 'voz de nina', 'usa voz de mujer', 'pon voz femenina', 'cambia a voz de mujer', 'quiero una voz de mujer'],
+     ['Listo, ahora uso una voz femenina.', 'Va, cambio a voz de chica. ¿Cómo suena?'])
 
 seed_more.finalize()

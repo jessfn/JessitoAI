@@ -1,4 +1,4 @@
-// Generador de respuestas de Blu (red neuronal GRU propia, entrenada con train/gen.py).
+// Generador de respuestas de Jessito (red neuronal GRU propia, entrenada con train/gen.py).
 // Escribe la respuesta palabra por palabra en el navegador, condicionada por lo que dijiste y por la intención detectada.
 const Gen = (() => {
   let C = null, P = null;
@@ -23,7 +23,7 @@ const Gen = (() => {
     C = cfg; P = W; return cfg;
   }
 
-  const PROPER = { blu: 'Blu', jessito: 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', vida: 'Vida', 'línea': 'Línea' };
+  const PROPER = { blu: 'Jessito', jessito: 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', vida: 'Vida', 'línea': 'Línea' };
   function detok(t) {
     let out = '', cap = true;
     t.forEach((w, i) => {

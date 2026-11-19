@@ -1,5 +1,5 @@
 # Datos de la segunda ampliación: humor, emociones humanas, vida diaria, voz, memoria.
-# Las intenciones sin frases (pools) son bancos de respuestas "humanas" para cuando Blu no entiende bien.
+# Las intenciones sin frases (pools) son bancos de respuestas "humanas" para cuando Jessito no entiende bien.
 import seed_more
 from seed_more import expand, more, new, add, I
 

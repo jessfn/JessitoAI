@@ -1,7 +1,7 @@
 {
-  "name": "Blu",
-  "short_name": "Blu",
-  "description": "Blu, un robotito azul con red neuronal propia que habla y ve.",
+  "name": "Jessito",
+  "short_name": "Jessito",
+  "description": "Jessito (se pronuncia Yessito), un robotito azul con red neuronal propia que habla y ve.",
   "lang": "es-MX",
   "start_url": "/",
   "scope": "/",

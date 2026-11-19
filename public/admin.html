@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Blu - Entrenamiento</title>
+<title>Jessito - Entrenamiento</title>
 <style>
 :root{--bg:#070c1f;--card:#0f1a3a;--line:#1f3470;--ink:#d6e8ff;--mut:#8aa6d6;--blue:#3a8dff}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;padding:16px;max-width:980px;margin:auto}
@@ -23,18 +23,18 @@ pre{background:#050918;padding:10px;border-radius:10px;overflow:auto;max-height:
 </style>
 </head>
 <body>
-<h1>Entrenamiento de Blu</h1>
+<h1>Entrenamiento de Jessito</h1>
 <div class="card"><h2>Clave de administrador</h2>
   <div class="row"><input id="key" type="password" placeholder="Clave" autocomplete="current-password"><button id="go">Entrar</button></div><div id="msg"></div></div>
 <div id="app" hidden>
   <div class="card"><h2>Resumen</h2><div class="stats" id="stats"></div><p id="ver" style="color:var(--mut);font-size:13px"></p>
     <div class="row"><button id="train">Entrenar ahora</button><button class="sec" id="refresh">Actualizar</button></div><pre id="log" hidden></pre></div>
-  <div class="card"><h2>Enseñar a Blu</h2>
+  <div class="card"><h2>Enseñar a Jessito</h2>
     <textarea id="t_text" placeholder="Lo que dice la persona. Ej: qué tal tu fin de semana"></textarea>
     <div class="row"><select id="t_tag"></select><input id="t_new" placeholder="o crear intención nueva (ej: fin_de_semana)"></div>
-    <textarea id="t_reply" placeholder="Cómo debe contestar Blu (opcional). Sin emojis."></textarea>
+    <textarea id="t_reply" placeholder="Cómo debe contestar Jessito (opcional). Sin emojis."></textarea>
     <div class="row"><select id="t_emo"></select><button id="teach">Guardar</button></div></div>
-  <div class="card"><h2>Frases que Blu no entendió</h2><div id="unknown"></div></div>
+  <div class="card"><h2>Frases que Jessito no entendió</h2><div id="unknown"></div></div>
   <div class="card"><h2>Intenciones</h2><table id="intents"></table></div>
   <div class="card"><h2>Últimos entrenamientos</h2><table id="runs"></table></div>
 </div>
@@ -63,7 +63,7 @@ $('refresh').onclick=load;
 $('teach').onclick=async()=>{
   const tag=($('t_new').value.trim()||$('t_tag').value).toLowerCase().replace(/\s+/g,'_');
   try{await api('teach',{text:$('t_text').value,tag,reply:$('t_reply').value,emotion:$('t_emo').value||undefined,conv_id:+$('t_text').dataset.conv||undefined});
-    $('t_text').value='';$('t_reply').value='';$('t_new').value='';delete $('t_text').dataset.conv;$('msg').textContent='Guardado. Entrena para que Blu lo aprenda.';load()}catch(e){$('msg').textContent='Error: '+e.message}};
+    $('t_text').value='';$('t_reply').value='';$('t_new').value='';delete $('t_text').dataset.conv;$('msg').textContent='Guardado. Entrena para que Jessito lo aprenda.';load()}catch(e){$('msg').textContent='Error: '+e.message}};
 $('train').onclick=async()=>{
   const r=await api('train',{});$('log').hidden=false;$('train').disabled=true;
   (async function poll(){const s=await api('train-status');$('log').textContent=s.log.join('\n');$('log').scrollTop=1e9;

@@ -1,4 +1,4 @@
-"""Red neuronal propia de Blu, escrita desde cero con NumPy (sin frameworks, sin APIs).
+"""Red neuronal propia de Jessito, escrita desde cero con NumPy (sin frameworks, sin APIs).
 
   texto -> rasgos hash (palabras, bigramas, n-gramas de letras) -> bolsa de embeddings (D)
         -> capa oculta tanh (H) -> softmax sobre intenciones
@@ -68,7 +68,10 @@ SYN = {'muy': ['super', 'bien', 'demasiado', 'tan'], 'super': ['muy', 'bien'], '
        'tengo': ['siento', 'ando con'], 'puedes': ['podrias', 'sabes'], 'eres': ['estas', 'te ves'], 'adios': ['chao', 'bye'], 'bonito': ['lindo', 'chulo'],
        'lindo': ['bonito', 'tierno'], 'por favor': ['porfa', 'si puedes'], 'ahorita': ['ahora', 'en este momento'], 'hoy': ['el dia de hoy', 'ahorita']}
 
+NAMES = ['jessito', 'yessito', 'jesito', 'yesito', 'blu']
+
 def augment(t, rng):
+    t = re.sub(r'blu', lambda m: rng.choice(NAMES), t)
     w = t.split()
     for i, x in enumerate(w):
         if x.lower() in SYN and rng.random() < .25:

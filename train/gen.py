@@ -1,9 +1,9 @@
-"""Generador de respuestas de Blu: una red neuronal propia (GRU) entrenada desde cero que ESCRIBE palabra por palabra.
+"""Generador de respuestas de Jessito: una red neuronal propia (GRU) entrenada desde cero que ESCRIBE palabra por palabra.
 
   texto de la persona -> rasgos hash (los mismos de brain.py) -> vector de contexto
         -> decodificador GRU que genera la respuesta (palabra a palabra) + cabeza de emoción
 
-Se entrena con los datos de PostgreSQL (frases y respuestas escritas por humanos).  Aprende el estilo de Blu y
+Se entrena con los datos de PostgreSQL (frases y respuestas escritas por humanos).  Aprende el estilo de Jessito y
 combina lo aprendido para decir cosas nuevas.  Exporta pesos (float16) que el navegador ejecuta con gen.js.
 Uso:  python gen.py [--epochs 30]
 """
@@ -21,7 +21,7 @@ NOGEN = {'crisis', 'no_entiendo', 'repetir'}        # respuestas delicadas: nunc
 TOK = re.compile(r"\{[a-z]+\}|[a-záéíóúüñ0-9]+|[.,;:!?¿¡…]")
 def tok(s): return TOK.findall(s.lower())
 
-PROPER = {'blu': 'Blu', 'jessito': 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', 'vida': 'Vida', 'línea': 'Línea'}
+PROPER = {'jessito': 'Jessito', 'blu': 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', 'vida': 'Vida', 'línea': 'Línea'}
 def detok(t):
     out, cap = '', True
     for i, w in enumerate(t):

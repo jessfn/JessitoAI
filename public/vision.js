@@ -1,4 +1,4 @@
-// Visión propia de Blu (sin APIs): analiza la cámara en el navegador.
+// Visión propia de Jessito (sin APIs): analiza la cámara en el navegador.
 // Detecta movimiento, zonas de piel (presencia), posición y cantidad de luz.
 // Es un detector sencillo hecho a mano; más adelante lo reemplazamos por una CNN entrenada por nosotros.
 const Vision = (() => {
@@ -40,7 +40,7 @@ const Vision = (() => {
       catch { s.on = false; v.style.display = 'none'; return false; }
       timer = setInterval(step, 130); return true;
     },
-    // hacia dónde mira Blu: x,y en [-1,1] (espejo, como un espejo), o null si no hay nada que seguir
+    // hacia dónde mira Jessito: x,y en [-1,1] (espejo, como un espejo), o null si no hay nada que seguir
     get gaze() {
       if (!s.on) return null;
       if (s.person) return { x: (.5 - s.personX) * 2, y: (s.personY - .5) * 1.6 };
@@ -48,7 +48,7 @@ const Vision = (() => {
       return null;
     },
     get state() { return s; },
-    // frase en español de lo que Blu ve
+    // frase en español de lo que Jessito ve
     summary() {
       if (!s.on) return 'No puedo ver nada porque mi cámara no está encendida. ¿Me das permiso de usarla?';
       if (s.light < .1) return 'Está muy oscuro, casi no veo nada. ¿Puedes prender una luz?';

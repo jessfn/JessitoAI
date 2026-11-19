@@ -1,4 +1,4 @@
-// Cerebro de Blu en el navegador: red neuronal propia (pesos entrenados en train/brain.py) + memoria + contexto.
+// Cerebro de Jessito en el navegador: red neuronal propia (pesos entrenados en train/brain.py) + memoria + contexto.
 // Sin APIs externas. Los rasgos deben ser IDENTICOS a los de brain.py.
 const Brain = (() => {
   let M = null, E, W1, b1, W2, b2;
