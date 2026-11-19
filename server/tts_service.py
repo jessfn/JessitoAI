@@ -5,6 +5,7 @@ import os, sys, json, hashlib, threading, re
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import numpy as np, soundfile as sf, torch
 from kokoro import KPipeline
+import tts_mp3
 
 torch.set_num_threads(int(os.environ.get('TTS_THREADS', '3')))
 PORT = int(os.environ.get('TTS_PORT', '3071'))
@@ -38,6 +39,8 @@ def synth(text, voice, speed):
         tmp = path + '.tmp'
         sf.write(tmp, a, 24000, subtype='PCM_16', format='WAV')
         os.replace(tmp, path)
+        try: tts_mp3.save(key, a)
+        except Exception as e: print('mp3', e, file=sys.stderr, flush=True)
     finally:
         LOCK.release()
     return open(path, 'rb').read(), False

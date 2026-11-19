@@ -8,6 +8,12 @@ self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET' || u.pathname.startsWith('/api/')) return;
   if (u.origin !== location.origin && !CDN.includes(u.hostname)) return;
+  if (u.origin === location.origin && u.pathname.startsWith('/voz/') && u.pathname.endsWith('.mp3')) {   // voz: primero la copia local
+    e.respondWith((async () => {
+      const vc = await caches.open('jessito-voz'), hit = await vc.match(r); if (hit) return hit;
+      const net = await fetch(r); if (net.ok) vc.put(r, net.clone()); return net;
+    })()); return;
+  }
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     if (u.origin !== location.origin) {                       // librerías de CDN: copia primero

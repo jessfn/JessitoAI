@@ -373,14 +373,39 @@ function unlockAudio(){const c=audioCtx();if(c&&c.state==='suspended')c.resume()
 addEventListener('pointerdown',unlockAudio,{passive:true});addEventListener('keydown',unlockAudio);
 const splitSentences=t=>(t.match(/[^.!?¿¡]+[.!?]*|[.!?]+/g)||[t]).map(x=>x.trim()).filter(Boolean);
 const ttsVoice=()=>VS.male?(VS.kv||'em_santa'):'ef_dora';
+const SPEEDT={sad:.9,sleepy:.85,happy:1,surprised:1.05,angry:1.05,love:.95,thinking:.95,listening:1,neutral:1};
+const ttsMult=()=>Math.min(1.3,Math.max(.75,+(VS.rate/1.08/(VS.pitch/1.1)).toFixed(2)));
+async function ttsKey(q,emotion){                           // misma clave que usa el servidor para guardar la frase
+  const sp=Math.round(Math.min(1.3,Math.max(.7,(SPEEDT[emotion]||1)*ttsMult()))*20)/20;
+  const d=await crypto.subtle.digest('SHA-1',new TextEncoder().encode(`${ttsVoice()}|${sp.toFixed(2)}|${q.slice(0,280)}`));
+  return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 async function ttsGet(q,emotion){
   const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),12000);
   try{
-    const r=await fetch('/api/tts',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,
-      body:JSON.stringify({text:q,emotion,voice:ttsVoice(),mult:+(VS.rate/1.08/(VS.pitch/1.1)).toFixed(2)})});
+    try{                                                    // 1) MP3 estático: el navegador lo guarda y suena al instante
+      const r=await fetch('/voz/'+await ttsKey(q,emotion)+'.mp3',{signal:ctl.signal});
+      if(r.ok)return await audioCtx().decodeAudioData(await r.arrayBuffer());
+    }catch(e){if(e&&e.name==='AbortError')throw e}
+    const r=await fetch('/api/tts',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,   // 2) el servidor la genera
+      body:JSON.stringify({text:q,emotion,voice:ttsVoice(),mult:ttsMult()})});
     if(!r.ok)throw new Error('tts '+r.status);
     return await audioCtx().decodeAudioData(await r.arrayBuffer());
   }finally{clearTimeout(to)}
+}
+// descarga poco a poco todas las frases conocidas para que Jessito conteste sin esperar a la red
+async function warmVoices(){
+  try{
+    const c=navigator.connection;if(c&&(c.saveData||/2g/.test(c.effectiveType||'')))return;
+    const keys=await fetch('/voz/index.json',{cache:'no-cache'}).then(r=>r.json());
+    const cache=await caches.open('jessito-voz');
+    for(const k of keys){
+      if(await cache.match('/voz/'+k+'.mp3'))continue;
+      while(talking||busyTurn)await sleep(1500);
+      try{await fetch('/voz/'+k+'.mp3')}catch{}
+      await sleep(150);
+    }
+  }catch{}
 }
 function playBuf(buf){
   return new Promise(res=>{
@@ -529,6 +554,7 @@ Gen.load().catch(()=>{});
 Brain.load().then(()=>{$('talk').disabled=false;status.textContent='Toca el botón y háblame, yo te escucho.';autoStart()})
   .catch(()=>{status.textContent='No pude cargar mi cerebro. Revisa tu internet.'});
 Vision.start(cam);
+setTimeout(warmVoices,8000);
 
 // ================= PWA: instalación y actualización inmediata =================
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
