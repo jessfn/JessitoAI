@@ -88,6 +88,21 @@ async function route(req, res) {
     return send(res, 200, { ok: true });
   }
 
+  // ----- voz (Kokoro, voz Santa) -----
+  if (p === '/api/tts' && req.method === 'POST') {
+    if (limited('t' + ip, 60)) return send(res, 429, { error: 'demasiadas' });
+    const b = await readBody(req, 2000);
+    const text = str(b.text, 280); if (!text) return send(res, 400, { error: 'vacio' });
+    let r;
+    try {
+      r = await fetch('http://127.0.0.1:3071/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(30000),
+        body: JSON.stringify({ text, emotion: str(b.emotion, 16), voice: str(b.voice, 12), mult: Number(b.mult) || 1 }) });
+    } catch { return send(res, 502, { error: 'voz no disponible' }); }
+    if (!r.ok) return send(res, r.status === 503 ? 503 : 502, { error: 'voz no disponible' });
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.writeHead(200, { 'content-type': 'audio/wav', 'content-length': buf.length, 'cache-control': 'no-store' }); return res.end(buf);
+  }
+
   // ----- recuerdos (respaldo de la memoria del dispositivo) -----
   if (p === '/api/memory') {
     if (limited('m' + ip, 60)) return send(res, 429, { error: 'demasiadas' });

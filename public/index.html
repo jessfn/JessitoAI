@@ -335,7 +335,7 @@ const PRESETS=[
   {id:'energico',name:'Energético',rate:1.17,pitch:1.18,male:true},
   {id:'tranquilo',name:'Tranquilo y suave',rate:.93,pitch:.95,male:true},
   {id:'dulce',name:'Dulce (voz femenina)',rate:1.0,pitch:1.1,male:false}];
-const VS=(()=>{const v={rate:1.08,pitch:1.1,vol:1,voice:'',male:true,preset:'joven'};try{Object.assign(v,JSON.parse(localStorage.getItem('blu_voice2')||'{}'))}catch{}return v})();
+const VS=(()=>{const v={rate:1.08,pitch:1.1,vol:1,voice:'',kv:'em_santa',male:true,preset:'joven'};try{Object.assign(v,JSON.parse(localStorage.getItem('blu_voice2')||'{}'))}catch{}return v})();
 const saveVS=()=>{try{localStorage.setItem('blu_voice2',JSON.stringify(VS))}catch{}};
 const MALE=/jorge|raul|raúl|diego|pablo|alvaro|álvaro|alejandro|enrique|gonzalo|pelayo|santiago|miguel|carlos|juan|jesus|jesús|lorenzo|rodrigo|andres|andrés|sergio|tomas|tomás|mateo|male|hombre|masculin/i;
 const FEMALE=/sabina|dalia|paulina|helena|lucia|lucía|laura|monica|mónica|elvira|elena|sonia|salome|salomé|valentina|camila|maria|maría|marisol|ximena|female|mujer|femenin|google/i;
@@ -351,29 +351,72 @@ function voicesEs(){
 }
 function pickVoice(){const l=voicesEs();if(!l.length)return null;return (VS.voice&&l.find(v=>v.name===VS.voice))||l[0]}
 speechSynthesis.onvoiceschanged=()=>{VOICES=null;if($('vpanel').classList.contains('open'))renderVoices()};
-function speak(text,emotion){
+// ---- voz neuronal (Kokoro "Santa" en el servidor) con respaldo en la voz del navegador ----
+let actx=null,curSrc=null,ttsFails=0,ttsOffUntil=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function audioCtx(){if(!actx){try{actx=new(window.AudioContext||window.webkitAudioContext)()}catch{}}return actx}
+function unlockAudio(){const c=audioCtx();if(c&&c.state==='suspended')c.resume().catch(()=>{})}
+addEventListener('pointerdown',unlockAudio,{passive:true});addEventListener('keydown',unlockAudio);
+const splitSentences=t=>(t.match(/[^.!?¿¡]+[.!?]*|[.!?]+/g)||[t]).map(x=>x.trim()).filter(Boolean);
+const ttsVoice=()=>VS.male?(VS.kv||'em_santa'):'ef_dora';
+async function ttsGet(q,emotion){
+  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),12000);
+  try{
+    const r=await fetch('/api/tts',{method:'POST',headers:{'content-type':'application/json'},signal:ctl.signal,
+      body:JSON.stringify({text:q,emotion,voice:ttsVoice(),mult:+(VS.rate/1.08/(VS.pitch/1.1)).toFixed(2)})});
+    if(!r.ok)throw new Error('tts '+r.status);
+    return await audioCtx().decodeAudioData(await r.arrayBuffer());
+  }finally{clearTimeout(to)}
+}
+function playBuf(buf){
   return new Promise(res=>{
-    setEmotion(emotion);status.textContent=LABEL[emotion]||'';
-    stopListening(true);                                   // no escucharse a sí mismo
-    // "Jessito" se escribe con jota pero se pronuncia "Yessito"
-    const clean=text.replace(/[\p{Extended_Pictographic}️‍*_#~`]/gu,'').replace(/\bjessito\b/gi,'Yessito').replace(/\s+/g,' ').trim();
-    const parts=(clean.match(/[^.!?¿¡]+[.!?]*|[.!?]+/g)||[clean]).map(x=>x.trim()).filter(Boolean);
-    const v=pickVoice(),[pr,pp]=PROS[emotion]||PROS.neutral,gen=++speakGen,nat=v&&isNat(v);
-    let i=0;talking=true;speaking=true;
-    const done=()=>{talking=false;speaking=false;res()};
+    const c=audioCtx(),s=c.createBufferSource(),g=c.createGain();
+    s.buffer=buf;s.playbackRate.value=Math.min(1.3,Math.max(.75,VS.pitch/1.1));g.gain.value=VS.vol;
+    s.connect(g);g.connect(c.destination);s.onended=res;curSrc=s;s.start();
+  });
+}
+function speakBrowser(parts,emotion,gen){                    // respaldo: voz del navegador
+  return new Promise(res=>{
+    const v=pickVoice(),[pr,pp]=PROS[emotion]||PROS.neutral,nat=v&&isNat(v);let i=0;
     const next=()=>{
-      if(gen!==speakGen)return done();
-      if(i>=parts.length)return done();
+      if(gen!==speakGen||i>=parts.length)return res();
       const q=parts[i++],u=new SpeechSynthesisUtterance(q);
       if(v){u.voice=v;u.lang=v.lang}else u.lang='es-MX';
       u.rate=Math.min(1.6,Math.max(.5,(nat?1:.96)*pr*VS.rate));
       u.pitch=Math.min(2,Math.max(.3,(nat?1:1.04)*pp*VS.pitch*(/\?$/.test(q)?1.04:1)));
-      u.volume=VS.vol;
-      u.onend=u.onerror=()=>{setTimeout(next,/[.!?]$/.test(q)?200:80)};   // pausa natural entre frases
+      u.volume=VS.vol;u.onend=u.onerror=()=>{setTimeout(next,/[.!?]$/.test(q)?200:80)};
       speechSynthesis.speak(u);
     };
     speechSynthesis.cancel();setTimeout(next,60);
   });
+}
+async function speak(text,emotion){
+  setEmotion(emotion);status.textContent=LABEL[emotion]||'';
+  stopListening(true);                                       // no escucharse a sí mismo
+  try{curSrc&&curSrc.stop()}catch{}
+  // "Jessito" se escribe con jota pero se pronuncia "Yessito"
+  const clean=text.replace(/[\p{Extended_Pictographic}️‍*_#~`]/gu,'').replace(/\bjessito\b/gi,'Yessito').replace(/\s+/g,' ').trim();
+  const parts=splitSentences(clean),gen=++speakGen;
+  talking=true;speaking=true;let i=0;
+  try{
+    const c=audioCtx();
+    if(c&&c.state==='suspended')await Promise.race([c.resume().catch(()=>{}),sleep(400)]);
+    if(c&&c.state==='running'&&Date.now()>ttsOffUntil&&parts.length){
+      try{
+        let cur=ttsGet(parts[0],emotion);
+        for(;i<parts.length;i++){
+          const buf=await cur;
+          cur=i+1<parts.length?ttsGet(parts[i+1],emotion):null;     // ya va generando la siguiente frase
+          if(cur)cur.catch(()=>{});
+          if(gen!==speakGen)return;
+          await playBuf(buf);
+          if(i+1<parts.length)await sleep(70);
+        }
+        ttsFails=0;return;
+      }catch(e){console.warn('voz neuronal no disponible, uso la del navegador',e);if(++ttsFails>=2)ttsOffUntil=Date.now()+60000}
+    }
+    await speakBrowser(parts.slice(i),emotion,gen);
+  }finally{if(gen===speakGen){talking=false;speaking=false}}
 }
 function applyAction(a){                                    // "habla más despacio", "voz de hombre", etc.
   switch(a){
@@ -381,10 +424,10 @@ function applyAction(a){                                    // "habla más despa
     case 'voz_rapido':VS.rate=Math.min(1.5,VS.rate+.12);break;
     case 'voz_aguda':VS.pitch=Math.min(1.5,VS.pitch+.12);break;
     case 'voz_grave':VS.pitch=Math.max(.6,VS.pitch-.12);break;
-    case 'voz_normal':Object.assign(VS,{rate:1.08,pitch:1.1,vol:1,voice:'',male:true,preset:'joven'});break;
+    case 'voz_normal':Object.assign(VS,{rate:1.08,pitch:1.1,vol:1,voice:'',kv:'em_santa',male:true,preset:'joven'});break;
     case 'voz_hombre':VS.male=true;VS.voice='';VOICES=null;break;
     case 'voz_mujer':VS.male=false;VS.voice='';VOICES=null;break;
-    case 'voz_cambiar':{const l=voicesEs();if(l.length){const k=l.findIndex(v=>v.name===(pickVoice()||{}).name);VS.voice=l[(k+1)%l.length].name}break}
+    case 'voz_cambiar':{VS.kv=VS.kv==='em_alex'?'em_santa':'em_alex';const l=voicesEs();if(l.length){const k=l.findIndex(v=>v.name===(pickVoice()||{}).name);VS.voice=l[(k+1)%l.length].name}break}
     case 'volumen_alto':VS.vol=1;break;
     case 'volumen_bajo':VS.vol=.45;break;
   }
