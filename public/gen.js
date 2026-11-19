@@ -23,7 +23,7 @@ const Gen = (() => {
     C = cfg; P = W; return cfg;
   }
 
-  const PROPER = { blu: 'Jessito', jessito: 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', vida: 'Vida', 'línea': 'Línea' };
+  const PROPER = { blu: 'Jessito', jessito: 'Jessito', yessito: 'Yessito', 'jesús': 'Jesús', 'méxico': 'México', vida: 'Vida', 'línea': 'Línea' };
   function detok(t) {
     let out = '', cap = true;
     t.forEach((w, i) => {

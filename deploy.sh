@@ -21,7 +21,7 @@ except Exception: cur = {}
 sha = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode().strip()
 cur['app'] = sha + '-' + time.strftime('%m%d%H%M')
 cur.setdefault('model', '0')
-cur['version'] = cur['app'] + '.' + cur['model']
+cur['version'] = cur['app'] + '.' + cur['model'] + ('.' + cur['gen'] if cur.get('gen') else '')
 json.dump(cur, open(p + '.tmp', 'w')); os.replace(p + '.tmp', p)
 print('version', cur['version'])
 PY

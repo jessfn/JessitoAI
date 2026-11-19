@@ -21,7 +21,7 @@ NOGEN = {'crisis', 'no_entiendo', 'repetir'}        # respuestas delicadas: nunc
 TOK = re.compile(r"\{[a-z]+\}|[a-záéíóúüñ0-9]+|[.,;:!?¿¡…]")
 def tok(s): return TOK.findall(s.lower())
 
-PROPER = {'jessito': 'Jessito', 'blu': 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', 'vida': 'Vida', 'línea': 'Línea'}
+PROPER = {'jessito': 'Jessito', 'yessito': 'Yessito', 'blu': 'Jessito', 'jesús': 'Jesús', 'méxico': 'México', 'vida': 'Vida', 'línea': 'Línea'}
 def detok(t):
     out, cap = '', True
     for i, w in enumerate(t):
