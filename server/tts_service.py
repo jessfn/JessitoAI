@@ -14,6 +14,14 @@ VOICES = {'em_santa', 'em_alex', 'ef_dora'}
 SPEED = {'sad': .9, 'sleepy': .85, 'happy': 1.0, 'surprised': 1.05, 'angry': 1.05, 'love': .95, 'thinking': .95, 'listening': 1.0, 'neutral': 1.0}
 PIPE = KPipeline(lang_code='e')
 LOCK = threading.Lock()
+RSS_LIMIT = int(os.environ.get('TTS_RSS_MB', '2800'))
+
+def rss_mb():
+    try:
+        for l in open('/proc/self/status'):
+            if l.startswith('VmRSS'): return int(l.split()[1]) // 1024
+    except Exception: pass
+    return 0
 
 def synth(text, voice, speed):
     key = hashlib.sha1(f'{voice}|{speed:.2f}|{text}'.encode()).hexdigest()
@@ -54,6 +62,9 @@ class H(BaseHTTPRequestHandler):
             wav, hit = synth(text, voice, speed)
             self.send_response(200); self.send_header('content-type', 'audio/wav'); self.send_header('content-length', str(len(wav)))
             self.send_header('x-cache', 'hit' if hit else 'miss'); self.end_headers(); self.wfile.write(wav)
+            if not hit and rss_mb() > RSS_LIMIT:                    # PyTorch va acumulando memoria: se reinicia solo (systemd lo vuelve a levantar)
+                print(f'reinicio por memoria ({rss_mb()} MB)', flush=True)
+                threading.Timer(0.4, lambda: os._exit(0)).start()
         except TimeoutError:
             self._send(503, b'{"error":"ocupado"}')
         except Exception as e:

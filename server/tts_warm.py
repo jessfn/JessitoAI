@@ -26,10 +26,13 @@ print(f'{len(items)} frases por calentar', flush=True)
 t0 = time.time(); miss = 0
 for i, (s, e) in enumerate(items):
     req = urllib.request.Request('http://127.0.0.1:3071/tts', data=json.dumps({'text': s, 'emotion': e, 'voice': 'em_santa', 'mult': 1}).encode(), headers={'content-type': 'application/json'})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            r.read(); miss += r.headers.get('x-cache') == 'miss'
-    except Exception as ex:
-        print('fallo', s, ex, flush=True)
+    for intento in range(10):                                  # si el servicio se reinicia por memoria, espera y reintenta
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                r.read(); miss += r.headers.get('x-cache') == 'miss'
+            break
+        except Exception as ex:
+            if intento == 9: print('fallo', s, ex, flush=True)
+            time.sleep(4)
     if i % 50 == 0: print(f'{i}/{len(items)} ({time.time() - t0:.0f}s)', flush=True)
 print(f'LISTO: {len(items)} frases, {miss} nuevas, {time.time() - t0:.0f}s', flush=True)
